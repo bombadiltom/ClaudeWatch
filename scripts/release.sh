@@ -147,7 +147,10 @@ if [[ -n "${TAP_DEPLOY_KEY:-}" ]]; then
   chmod 600 "$WORK_DIR/tap_key"
   export GIT_SSH_COMMAND="ssh -i $WORK_DIR/tap_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
 fi
-TAP_DIR="$WORK_DIR/tap"
+# Clone inside this repo's (ignored) build folder, not a temp folder: git then commits with the
+# identity configured for this repo's location (e.g. an includeIf in ~/.gitconfig).
+TAP_DIR="$ROOT/build/tap"
+rm -rf "$TAP_DIR"
 git clone --quiet "git@github.com:$TAP_REPO.git" "$TAP_DIR"
 mkdir -p "$TAP_DIR/Casks"
 cat > "$TAP_DIR/Casks/$CASK_TOKEN.rb" <<EOF
