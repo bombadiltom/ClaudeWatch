@@ -2,6 +2,8 @@
 
 A menu bar app for macOS 14+ that shows how much of your Claude plan you've used, and what your Claude Code sessions cost: CLI sessions running on Amazon Bedrock, Claude Desktop's Code sessions on your Pro or Max plan, and anything else that writes Claude Code transcripts.
 
+> ClaudeWatch is an independent project. It isn't affiliated with, endorsed by or supported by Anthropic. Claude is a trademark of Anthropic, used here only to say which product the app works with.
+
 - **Plan limits:** the 5-hour and weekly utilization of your Pro/Max plan, as Claude Desktop's Settings › Usage shows it.
 - **Menu bar:** your 5-hour plan usage and today's AWS cost, or either one.
 - **Tokens and cost:** plan usage in tokens (with its value at API prices), Bedrock usage in dollars.
