@@ -33,12 +33,7 @@ struct MenuContentView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("Claude usage").font(.headline)
                 Spacer()
-                Picker("Period", selection: $store.period) {
-                    ForEach(Period.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 210)
+                PeriodPicker(selection: $store.period)
             }
 
             if !store.hasScanned {
@@ -127,6 +122,36 @@ extension Totals {
 }
 
 // MARK: - Pieces
+
+/// A segmented control with equal, fixed-width segments. The native segmented picker is wider than
+/// the space here and resizes its segments when the selection changes, so the buttons shifted.
+private struct PeriodPicker: View {
+    @Binding var selection: Period
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Period.allCases) { period in
+                let selected = period == selection
+                Button {
+                    selection = period
+                } label: {
+                    Text(period.title)
+                        .font(.callout)
+                        .lineLimit(1)
+                        .foregroundStyle(selected ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+                        .frame(width: 52, height: 22)
+                        .background(selected ? Color.accentColor : .clear, in: RoundedRectangle(cornerRadius: 5))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
+        .padding(2)
+        .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 7))
+        .fixedSize()
+    }
+}
 
 private struct SummaryView: View {
     let totals: Totals
