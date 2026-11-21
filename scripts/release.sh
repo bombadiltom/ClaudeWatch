@@ -157,7 +157,7 @@ cask "$CASK_TOKEN" do
 
   url "https://github.com/$REPO/releases/download/v#{version}/$APP_NAME-#{version}.zip"
   name "$APP_NAME"
-  desc "Menu bar costs and token usage of Claude Code sessions"
+  desc "Menu bar Claude plan limits, token usage and Claude Code costs"
   homepage "https://github.com/$REPO"
 
   livecheck do

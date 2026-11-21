@@ -156,27 +156,26 @@ final class SideRequestTests: XCTestCase {
     }
 }
 
-final class ShellConfigTests: XCTestCase {
-    func testImportsPinnedSessionsWithNamesFromCalls() {
-        let zshrc = """
-        ACME_MAIN_ID=11111111-2222-4333-8444-555555555555
-        ACME_REVIEW_ID=66666666-7777-4888-9999-aaaaaaaaaaaa
-        export GLOBEX_MAIN_ID="bbbbbbbb-cccc-4ddd-8eee-ffffffffffff"
-        claude-acme() { ( _acme_env && ANTHROPIC_MODEL=eu.anthropic.claude-opus-5-5 _claude_pinned acme-01 "$ACME_MAIN_ID" "$@" ) }
-        """
-        let pins = ShellConfigImporter.pinnedSessions(in: zshrc)
-        XCTAssertEqual(pins.map(\.label), ["acme-01", "acme-review", "globex-main"])
-        XCTAssertEqual(pins.map(\.sessionID).last, "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff")
+final class PlanUsageTests: XCTestCase {
+    func testReadsNewestDesktopSample() throws {
+        let json = #"""
+        {"version":2,"samples":[
+          {"t":1795000000000,"org":"o","u":{"fh":92,"sd":31}},
+          {"t":1795100000000,"org":"o","u":{"fh":30,"sd":35}},
+          {"t":1795050000000,"org":"o","u":{"fh":0,"sd":33}}
+        ]}
+        """#
+        let usage = try XCTUnwrap(PlanUsageReader.parse(Data(json.utf8)))
+        XCTAssertEqual(usage.limits.map(\.id), ["fh", "sd"])
+        XCTAssertEqual(usage.limits.map(\.utilization), [30, 35])
+        XCTAssertEqual(usage.asOf, Date(timeIntervalSince1970: 1_795_100_000))
+        XCTAssertTrue(usage.isStale(now: usage.asOf.addingTimeInterval(31 * 60)))
+        XCTAssertFalse(usage.isStale(now: usage.asOf.addingTimeInterval(10 * 60)))
     }
-}
 
-final class PlanLimitsTests: XCTestCase {
-    func testParsesUsageWindows() throws {
-        let json = #"{"five_hour":{"utilization":42.0,"resets_at":"2026-11-21T15:00:00.123+00:00"},"seven_day":{"utilization":12,"resets_at":null},"seven_day_opus":null,"extra":"x"}"#
-        let limits = try PlanLimitsClient.parse(Data(json.utf8))
-        XCTAssertEqual(limits.map(\.id), ["five_hour", "seven_day"])
-        XCTAssertEqual(limits[0].utilization, 42)
-        XCTAssertNotNil(limits[0].resetsAt)
+    func testIgnoresUnreadableFiles() {
+        XCTAssertNil(PlanUsageReader.parse(Data("{}".utf8)))
+        XCTAssertNil(PlanUsageReader.parse(Data(#"{"samples":[]}"#.utf8)))
     }
 }
 

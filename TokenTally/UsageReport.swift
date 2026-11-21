@@ -32,6 +32,8 @@ struct Totals: Sendable, Equatable {
     /// Plan (or API key) usage, valued at Anthropic API list prices.
     var planValue: Double = 0
     var tokens: Int = 0
+    /// Tokens that count toward your plan (everything not billed by a cloud provider).
+    var planTokens: Int = 0
     var requests: Int = 0
     var lastActivity: Date?
     /// Requests for models missing from the price table.
@@ -40,6 +42,7 @@ struct Totals: Sendable, Equatable {
     var sideRequestCost: Double = 0
 
     var cost: Double { cloudCost + planValue }
+    var cloudTokens: Int { tokens - planTokens }
 
     /// - Parameter factor: side-request factor for this message (1 when there is none).
     mutating func add(_ entry: UsageEntry, factor: Double = 1, cloudSurcharge: Double) {
@@ -54,6 +57,7 @@ struct Totals: Sendable, Equatable {
         }
         sideRequestCost += (base ?? 0) * (factor - 1) * markup
         tokens += entry.totalTokens
+        if !entry.backend.isCloudBilled { planTokens += entry.totalTokens }
         requests += 1
         if lastActivity.map({ entry.timestamp > $0 }) ?? true { lastActivity = entry.timestamp }
     }
@@ -62,6 +66,7 @@ struct Totals: Sendable, Equatable {
         cloudCost += other.cloudCost
         planValue += other.planValue
         tokens += other.tokens
+        planTokens += other.planTokens
         requests += other.requests
         unpricedRequests += other.unpricedRequests
         sideRequestCost += other.sideRequestCost
@@ -75,7 +80,7 @@ struct UsageRow: Identifiable, Sendable, Equatable {
     var title: String
     var subtitle: String?
     var totals = Totals()
-    var models: [String: Double] = [:]
+    var models: [String: Totals] = [:]
     var live: LiveSession?
     var children: [UsageRow] = []
 }
@@ -105,7 +110,7 @@ struct UsageReport: Sendable, Equatable {
         func title(of session: String) -> String? { titles[session] ?? liveByID[session]?.name }
 
         var report = UsageReport(period: period)
-        var pinnedRows = pinned.map { UsageRow(id: $0.id.uuidString, title: $0.label) }
+        var pinnedRows = pinned.map { UsageRow(id: $0.id.uuidString, title: $0.label.isEmpty ? "Unnamed pin" : $0.label) }
         var pinnedIndexBySession: [String: Int?] = [:]
         func pinIndex(for session: String) -> Int? {
             if let cached = pinnedIndexBySession[session] { return cached }
@@ -151,9 +156,8 @@ struct UsageReport: Sendable, Equatable {
     }
 
     private static func add(_ entry: UsageEntry, factor: Double, to row: inout UsageRow, cloudSurcharge: Double) {
-        let before = row.totals.cost
         row.totals.add(entry, factor: factor, cloudSurcharge: cloudSurcharge)
-        row.models[Pricing.normalize(entry.model), default: 0] += row.totals.cost - before
+        row.models[Pricing.normalize(entry.model), default: Totals()].add(entry, factor: factor, cloudSurcharge: cloudSurcharge)
     }
 
     private static func projectRows(

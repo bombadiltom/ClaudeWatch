@@ -15,16 +15,17 @@ struct SettingsView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Pinned sessions").font(.subheadline.weight(.semibold))
-                Text("A session counts toward a pin if its id matches, or if its name (`claude -n <name>`) equals the label.")
+                Text("Right-click a session in the menu to pin it. A session counts toward a pin if its id matches, or if its name (`claude -n <name>`) equals the label.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                ForEach($store.pinned) { $pin in
+                // Bindings by id, not by index: removing a pin must not leave a field reading a stale index.
+                ForEach(store.pinned) { pin in
                     HStack(spacing: 6) {
-                        TextField("Label", text: $pin.label).frame(width: 110)
-                        TextField("Session id", text: $pin.sessionID).font(.caption.monospaced())
+                        TextField("Label", text: binding(pin.id, \.label)).frame(width: 110)
+                        TextField("Session id", text: binding(pin.id, \.sessionID)).font(.caption.monospaced())
                         Button {
-                            store.pinned.removeAll { $0.id == pin.id }
+                            store.unpin(pin.id)
                         } label: {
                             Image(systemName: "minus.circle")
                         }
@@ -32,11 +33,8 @@ struct SettingsView: View {
                         .help("Remove")
                     }
                 }
-                HStack {
-                    Button("Add") {
-                        store.pinned.append(PinnedSession(label: "", sessionID: UUID().uuidString.lowercased()))
-                    }
-                    Button("Import from ~/.zshrc") { store.importFromShellConfig() }
+                Button("Add") {
+                    store.pinned.append(PinnedSession(label: "", sessionID: ""))
                 }
                 .controlSize(.small)
             }
@@ -80,21 +78,21 @@ struct SettingsView: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Toggle("Show Pro plan limits", isOn: $store.showPlanLimits)
-                Text("Uses the plan login Claude Code keeps in your keychain. macOS asks once whether TokenTally may read it.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.leading, 20)
-            }
-            .toggleStyle(.checkbox)
-
             Toggle(
                 "Launch at login",
                 isOn: Binding(get: { store.launchAtLogin }, set: { store.setLaunchAtLogin($0) })
             )
             .toggleStyle(.checkbox)
         }
+    }
+
+    private func binding(_ id: PinnedSession.ID, _ field: WritableKeyPath<PinnedSession, String>) -> Binding<String> {
+        Binding(
+            get: { store.pinned.first { $0.id == id }?[keyPath: field] ?? "" },
+            set: { value in
+                guard let index = store.pinned.firstIndex(where: { $0.id == id }) else { return }
+                store.pinned[index][keyPath: field] = value
+            }
+        )
     }
 }

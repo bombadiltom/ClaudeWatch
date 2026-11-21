@@ -40,3 +40,30 @@ final class SnapshotTests: XCTestCase {
         try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: url)
     }
 }
+
+/// Removing a pin used to crash: the remove button read the pin through a binding while the
+/// array was being mutated (Swift exclusivity violation).
+@MainActor
+final class SettingsViewTests: XCTestCase {
+    func testRemovingPinsKeepsRendering() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "TokenTallyTests.\(UUID().uuidString)"))
+        let store = UsageStore(defaults: defaults)
+        store.pinned = [
+            PinnedSession(label: "one", sessionID: "11111111-1111-1111-1111-111111111111"),
+            PinnedSession(label: "two", sessionID: ""),
+        ]
+        let host = NSHostingView(rootView: SettingsView(store: store, done: {}))
+        host.frame.size = CGSize(width: 380, height: 500)
+        host.layoutSubtreeIfNeeded()
+
+        for pin in store.pinned {
+            store.unpin(pin.id)
+            host.layoutSubtreeIfNeeded()
+        }
+        XCTAssertTrue(store.pinned.isEmpty)
+
+        store.pin(sessionID: "22222222-2222-2222-2222-222222222222", label: "three")
+        store.pin(sessionID: "22222222-2222-2222-2222-222222222222", label: "dupe")
+        XCTAssertEqual(store.pinned.map(\.label), ["three"])
+    }
+}

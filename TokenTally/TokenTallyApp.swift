@@ -14,7 +14,7 @@ struct TokenTallyApp: App {
     }
 }
 
-/// Today's AWS cost (or AWS + plan value), plus the 5-hour plan window when that's turned on.
+/// The 5-hour plan usage and/or today's AWS cost, as chosen in Settings.
 struct MenuBarLabel: View {
     let store: UsageStore
 
@@ -26,17 +26,15 @@ struct MenuBarLabel: View {
     }
 
     private var text: String? {
-        var parts: [String] = []
-        if store.hasScanned {
-            switch store.menuBarDisplay {
-            case .cloudToday: parts.append(Format.money(store.today.cloudCost))
-            case .allToday: parts.append(Format.money(store.today.cost))
-            case .iconOnly: break
-            }
+        let plan = store.planUsage?.fiveHour().map { "\(Int($0.rounded()))%" }
+        let cloud = store.hasScanned ? Format.money(store.today.cloudCost) : nil
+        let parts: [String?] = switch store.menuBarDisplay {
+        case .planAndCloud: [plan, cloud]
+        case .plan: [plan]
+        case .cloudToday: [cloud]
+        case .iconOnly: []
         }
-        if store.showPlanLimits, let session = store.planLimits.first(where: { $0.id == "five_hour" }) {
-            parts.append("\(Int(session.utilization.rounded()))%")
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        let shown = parts.compactMap { $0 }
+        return shown.isEmpty ? nil : shown.joined(separator: " · ")
     }
 }

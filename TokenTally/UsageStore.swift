@@ -4,13 +4,14 @@ import ServiceManagement
 @preconcurrency import UserNotifications
 
 enum MenuBarDisplay: String, CaseIterable, Identifiable {
-    case cloudToday, allToday, iconOnly
+    case planAndCloud, plan, cloudToday, iconOnly
 
     var id: String { rawValue }
     var title: String {
         switch self {
+        case .planAndCloud: "5-hour plan usage + AWS cost today"
+        case .plan: "5-hour plan usage"
         case .cloudToday: "AWS cost today"
-        case .allToday: "AWS cost + plan value today"
         case .iconOnly: "Icon only"
         }
     }
@@ -20,15 +21,14 @@ enum MenuBarDisplay: String, CaseIterable, Identifiable {
 @Observable
 final class UsageStore {
     static let scanInterval: TimeInterval = 30
-    static let planInterval: TimeInterval = 5 * 60
 
     private(set) var report = UsageReport.empty
     private(set) var today = Totals()
     private(set) var isScanning = false
     private(set) var hasScanned = false
     private(set) var lastUpdated: Date?
-    private(set) var planLimits: [PlanLimit] = []
-    private(set) var planError: String?
+    /// Plan utilization from Claude Desktop; nil if Desktop hasn't recorded any.
+    private(set) var planUsage: PlanUsage?
     private(set) var notificationsAllowed = true
     private(set) var launchAtLogin = SMAppService.mainApp.status == .enabled
 
@@ -42,26 +42,19 @@ final class UsageStore {
 
     /// Extra charge on Bedrock/Vertex requests over Anthropic list price, in percent.
     var cloudSurchargePercent: Double {
-        didSet { UserDefaults.standard.set(cloudSurchargePercent, forKey: Keys.surcharge); rebuild() }
+        didSet { defaults.set(cloudSurchargePercent, forKey: Keys.surcharge); rebuild() }
     }
 
     var menuBarDisplay: MenuBarDisplay {
-        didSet { UserDefaults.standard.set(menuBarDisplay.rawValue, forKey: Keys.display) }
+        didSet { defaults.set(menuBarDisplay.rawValue, forKey: Keys.display) }
     }
 
     /// Notify once a day when today's AWS cost passes this many dollars. 0 turns it off.
     var dailyBudget: Double {
         didSet {
-            UserDefaults.standard.set(dailyBudget, forKey: Keys.budget)
+            defaults.set(dailyBudget, forKey: Keys.budget)
             if dailyBudget > 0 { requestNotificationPermission() }
             evaluateBudget()
-        }
-    }
-
-    var showPlanLimits: Bool {
-        didSet {
-            UserDefaults.standard.set(showPlanLimits, forKey: Keys.showPlan)
-            if showPlanLimits { refreshPlanLimits() } else { planLimits = []; planError = nil }
         }
     }
 
@@ -73,32 +66,26 @@ final class UsageStore {
     private var timers: [Timer] = []
     private let notificationDelegate = NotificationDelegate()
 
-    init() {
-        let defaults = UserDefaults.standard
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         if let data = defaults.data(forKey: Keys.pinned),
            let stored = try? JSONDecoder().decode([PinnedSession].self, from: data) {
             pinned = stored
         } else {
-            pinned = ShellConfigImporter.pinnedSessions()
+            pinned = []
         }
         cloudSurchargePercent = defaults.double(forKey: Keys.surcharge)
-        menuBarDisplay = MenuBarDisplay(rawValue: defaults.string(forKey: Keys.display) ?? "") ?? .cloudToday
+        menuBarDisplay = MenuBarDisplay(rawValue: defaults.string(forKey: Keys.display) ?? "") ?? .planAndCloud
         dailyBudget = defaults.double(forKey: Keys.budget)
-        showPlanLimits = defaults.bool(forKey: Keys.showPlan)
 
         UNUserNotificationCenter.current().delegate = notificationDelegate
         Task { await updateNotificationStatus() }
 
         refresh()
-        if showPlanLimits { refreshPlanLimits() }
         timers.append(Timer.scheduledTimer(withTimeInterval: Self.scanInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
-        })
-        timers.append(Timer.scheduledTimer(withTimeInterval: Self.planInterval, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                guard let self, self.showPlanLimits else { return }
-                self.refreshPlanLimits()
-            }
         })
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
@@ -114,11 +101,13 @@ final class UsageStore {
         isScanning = true
         Task {
             let result = await scanner.scan()
-            let (live, titles, factors) = await Task.detached(priority: .utility) {
+            let (live, titles, factors, plan) = await Task.detached(priority: .utility) {
                 (SessionDirectory.liveSessions(), SessionDirectory.desktopTitles(),
-                 SideRequests.factors(entries: result.entries, snapshots: result.snapshots))
+                 SideRequests.factors(entries: result.entries, snapshots: result.snapshots),
+                 PlanUsageReader.read())
             }.value
             self.scan = result
+            if self.planUsage != plan { self.planUsage = plan }
             self.factors = factors
             self.live = live
             self.desktopTitles = titles
@@ -126,17 +115,6 @@ final class UsageStore {
             self.hasScanned = true
             self.lastUpdated = .now
             self.rebuild()
-        }
-    }
-
-    func refreshPlanLimits() {
-        Task {
-            do {
-                planLimits = try await PlanLimitsClient.fetch()
-                planError = nil
-            } catch {
-                planError = error.localizedDescription
-            }
         }
     }
 
@@ -160,13 +138,13 @@ final class UsageStore {
 
     // MARK: - Settings
 
-    func importFromShellConfig() {
-        let found = ShellConfigImporter.pinnedSessions()
-        var merged = pinned
-        for pin in found where !merged.contains(where: { $0.sessionID == pin.sessionID }) {
-            merged.append(pin)
-        }
-        pinned = merged
+    func pin(sessionID: String, label: String) {
+        guard !pinned.contains(where: { $0.sessionID.caseInsensitiveCompare(sessionID) == .orderedSame }) else { return }
+        pinned.append(PinnedSession(label: label, sessionID: sessionID))
+    }
+
+    func unpin(_ id: PinnedSession.ID) {
+        pinned.removeAll { $0.id == id }
     }
 
     func setLaunchAtLogin(_ enabled: Bool) {
@@ -187,8 +165,8 @@ final class UsageStore {
     private func evaluateBudget() {
         guard dailyBudget > 0, hasScanned, today.cloudCost >= dailyBudget else { return }
         let day = Self.dayKey(.now)
-        guard UserDefaults.standard.string(forKey: Keys.budgetAlertDay) != day else { return }
-        UserDefaults.standard.set(day, forKey: Keys.budgetAlertDay)
+        guard defaults.string(forKey: Keys.budgetAlertDay) != day else { return }
+        defaults.set(day, forKey: Keys.budgetAlertDay)
 
         let content = UNMutableNotificationContent()
         content.title = "AWS spend today: \(Format.money(today.cloudCost))"
@@ -219,7 +197,7 @@ final class UsageStore {
     }
 
     private func save<T: Encodable>(_ value: T, forKey key: String) {
-        if let data = try? JSONEncoder().encode(value) { UserDefaults.standard.set(data, forKey: key) }
+        if let data = try? JSONEncoder().encode(value) { defaults.set(data, forKey: key) }
     }
 
     private enum Keys {
@@ -228,7 +206,6 @@ final class UsageStore {
         static let display = "menuBarDisplay"
         static let budget = "dailyBudget"
         static let budgetAlertDay = "budgetAlertDay"
-        static let showPlan = "showPlanLimits"
     }
 }
 
