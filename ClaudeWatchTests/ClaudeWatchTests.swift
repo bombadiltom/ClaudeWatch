@@ -183,6 +183,61 @@ final class PlanUsageTests: XCTestCase {
     }
 }
 
+final class PlanEstimatorTests: XCTestCase {
+    let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+
+    private func usage(fh: Double, sd: Double, previous: (fh: Double, sd: Double)) -> PlanUsage {
+        let samples = [
+            PlanSample(date: t0, values: ["fh": previous.fh, "sd": previous.sd]),
+            PlanSample(date: t0.addingTimeInterval(900), values: ["fh": fh, "sd": sd]),
+        ]
+        return PlanUsage(
+            limits: [PlanLimit(id: "fh", label: "5-hour", utilization: fh), PlanLimit(id: "sd", label: "Weekly", utilization: sd)],
+            asOf: t0.addingTimeInterval(900), samples: samples
+        )
+    }
+
+    private func request(_ offset: TimeInterval, _ value: Double) -> PlanEstimator.Usage {
+        PlanEstimator.Usage(date: t0.addingTimeInterval(offset), value: value)
+    }
+
+    func testAddsUsageSinceTheReading() throws {
+        // The window starts 30 min before the first reading; $10 between the readings raised the
+        // 5-hour usage by 10 points and the weekly by 1: 1 %/$ and 0.1 %/$.
+        let plan = [request(-1800, 1), request(300, 4), request(600, 6), request(1200, 5)]
+        let estimate = PlanEstimator.estimate(usage(fh: 20, sd: 21, previous: (10, 20)), plan: plan, now: t0.addingTimeInterval(1500))
+
+        let fiveHour = try XCTUnwrap(estimate.limit("fh"))
+        XCTAssertEqual(fiveHour.utilization, 25, accuracy: 0.001)
+        XCTAssertTrue(fiveHour.isEstimated)
+        XCTAssertEqual(fiveHour.resetsAt, t0.addingTimeInterval(-1800 + 5 * 3600))
+        XCTAssertEqual(try XCTUnwrap(estimate.limit("sd")).utilization, 21.5, accuracy: 0.001)
+    }
+
+    func testWindowThatEndedIsEmpty() throws {
+        let plan = [request(-1800, 1), request(300, 4), request(600, 6)]
+        let estimate = PlanEstimator.estimate(usage(fh: 20, sd: 21, previous: (10, 20)), plan: plan, now: t0.addingTimeInterval(6 * 3600))
+        XCTAssertEqual(try XCTUnwrap(estimate.limit("fh")).utilization, 0)
+        XCTAssertNil(estimate.limit("fh")?.resetsAt)
+    }
+
+    func testReadingFromThePreviousWindow() throws {
+        // A new window starts 6 h later with $3 of usage: 3 % at 1 %/$, not the old reading's 20 %.
+        let plan = [request(-1800, 1), request(300, 4), request(600, 6), request(6 * 3600, 1), request(6 * 3600 + 60, 2)]
+        let estimate = PlanEstimator.estimate(usage(fh: 20, sd: 21, previous: (10, 20)), plan: plan, now: t0.addingTimeInterval(6 * 3600 + 120))
+        let fiveHour = try XCTUnwrap(estimate.limit("fh"))
+        XCTAssertEqual(fiveHour.utilization, 3, accuracy: 0.001)
+        XCTAssertEqual(fiveHour.resetsAt, t0.addingTimeInterval(11 * 3600))
+    }
+
+    func testNoRateWithoutEnoughHistory() throws {
+        let plan = [request(-1800, 0.5), request(300, 0.5), request(1200, 5)]
+        let estimate = PlanEstimator.estimate(usage(fh: 20, sd: 21, previous: (10, 20)), plan: plan, now: t0.addingTimeInterval(1500))
+        XCTAssertEqual(try XCTUnwrap(estimate.limit("fh")).utilization, 20)
+        XCTAssertFalse(try XCTUnwrap(estimate.limit("fh")).isEstimated)
+    }
+}
+
 extension UsageEntry {
     static func fixture(
         id: String = UUID().uuidString, session: String = "s", model: String,

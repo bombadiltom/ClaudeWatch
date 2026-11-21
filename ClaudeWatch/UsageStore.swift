@@ -30,8 +30,11 @@ final class UsageStore {
     private(set) var isScanning = false
     private(set) var hasScanned = false
     private(set) var lastUpdated: Date?
-    /// Plan utilization from Claude Desktop; nil if Desktop hasn't recorded any.
+    /// Plan utilization from Claude Desktop, brought up to date with the Claude Code usage since
+    /// Desktop's last reading (see `PlanEstimator`); nil if Desktop hasn't recorded any.
     private(set) var planUsage: PlanUsage?
+    /// Desktop's reading as saved.
+    private var desktopPlanUsage: PlanUsage?
     private(set) var notificationsAllowed = true
     private(set) var launchAtLogin = SMAppService.mainApp.status == .enabled
 
@@ -61,6 +64,15 @@ final class UsageStore {
         }
     }
 
+    /// Notify when the 5-hour plan usage reaches this percentage. 0 turns it off.
+    var planAlertPercent: Double {
+        didSet {
+            defaults.set(planAlertPercent, forKey: Keys.planAlert)
+            if planAlertPercent > 0 { requestNotificationPermission() }
+            evaluatePlanAlert()
+        }
+    }
+
     private let scanner = TranscriptScanner()
     private var scan = ScanResult(entries: [], titles: [:])
     private var factors: [String: Double] = [:]
@@ -83,9 +95,11 @@ final class UsageStore {
         cloudSurchargePercent = defaults.double(forKey: Keys.surcharge)
         menuBarDisplay = MenuBarDisplay(rawValue: defaults.string(forKey: Keys.display) ?? "") ?? .planAndCloud
         dailyBudget = defaults.double(forKey: Keys.budget)
+        planAlertPercent = defaults.object(forKey: Keys.planAlert) as? Double ?? 80
 
         UNUserNotificationCenter.current().delegate = notificationDelegate
         Task { await updateNotificationStatus() }
+        if planAlertPercent > 0 || dailyBudget > 0 { requestNotificationPermission() }
 
         refresh()
         timers.append(Timer.scheduledTimer(withTimeInterval: Self.scanInterval, repeats: true) { [weak self] _ in
@@ -111,7 +125,7 @@ final class UsageStore {
                  PlanUsageReader.read())
             }.value
             self.scan = result
-            if self.planUsage != plan { self.planUsage = plan }
+            self.desktopPlanUsage = plan
             self.factors = factors
             self.live = live
             self.desktopTitles = titles
@@ -130,7 +144,20 @@ final class UsageStore {
             cloudSurcharge: surcharge, factors: factors
         )
         cloudCostByPeriod = UsageReport.cloudCosts(entries: scan.entries, cloudSurcharge: surcharge, factors: factors)
+        let estimated = desktopPlanUsage.map { PlanEstimator.estimate($0, plan: planRequests()) }
+        if planUsage != estimated { planUsage = estimated }
         evaluateBudget()
+        evaluatePlanAlert()
+    }
+
+    /// The last week's plan (non-cloud) requests with their API value, for `PlanEstimator`.
+    private func planRequests(now: Date = .now) -> [PlanEstimator.Usage] {
+        let since = now.addingTimeInterval(-7 * 86_400)
+        return scan.entries.compactMap { entry in
+            guard !entry.backend.isCloudBilled, entry.timestamp > since else { return nil }
+            let value = (Pricing.cost(of: entry) ?? 0) * (factors[entry.messageID] ?? 1)
+            return PlanEstimator.Usage(date: entry.timestamp, value: value)
+        }
     }
 
     // MARK: - Settings
@@ -175,6 +202,33 @@ final class UsageStore {
         )
     }
 
+    // MARK: - 5-hour plan alert
+
+    /// Notifies once when the 5-hour usage reaches `planAlertPercent`, and again only after it has
+    /// dropped below (a new window).
+    private func evaluatePlanAlert() {
+        guard planAlertPercent > 0, let usage = planUsage?.fiveHour() else { return }
+        let fired = defaults.bool(forKey: Keys.planAlertFired)
+        if usage < planAlertPercent {
+            if fired { defaults.set(false, forKey: Keys.planAlertFired) }
+            return
+        }
+        guard !fired else { return }
+        defaults.set(true, forKey: Keys.planAlertFired)
+
+        let content = UNMutableNotificationContent()
+        content.title = "5-hour plan usage at \(Int(usage.rounded()))%"
+        if let reset = planUsage?.limit(PlanUsageReader.fiveHour)?.resetsAt {
+            content.body = "The window resets at about \(reset.formatted(date: .omitted, time: .shortened))."
+        } else {
+            content.body = "You've passed \(Int(planAlertPercent))% of your plan's 5-hour limit."
+        }
+        content.sound = .default
+        UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: "plan-\(Int(Date.now.timeIntervalSince1970))", content: content, trigger: nil)
+        )
+    }
+
     private static func dayKey(_ date: Date) -> String {
         let c = Calendar.current.dateComponents([.year, .month, .day], from: date)
         return "\(c.year ?? 0)-\(c.month ?? 0)-\(c.day ?? 0)"
@@ -205,6 +259,8 @@ final class UsageStore {
         static let budget = "dailyBudget"
         static let budgetAlertDay = "budgetAlertDay"
         static let period = "period"
+        static let planAlert = "planAlertPercent"
+        static let planAlertFired = "planAlertFired"
     }
 }
 

@@ -65,7 +65,17 @@ struct SettingsView: View {
             }
             .help("0 turns the alert off. You get one notification per day.")
 
-            if store.dailyBudget > 0 && !store.notificationsAllowed {
+            HStack {
+                Text("Notify when 5-hour plan usage reaches")
+                Spacer()
+                TextField("off", value: $store.planAlertPercent, format: .number.precision(.fractionLength(0)))
+                    .frame(width: 50)
+                    .multilineTextAlignment(.trailing)
+                Text("%")
+            }
+            .help("0 turns the alert off. You get one notification per 5-hour window.")
+
+            if (store.dailyBudget > 0 || store.planAlertPercent > 0) && !store.notificationsAllowed {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Image(systemName: "bell.slash").foregroundStyle(.orange)
                     Text("Notifications are off for ClaudeWatch.").font(.callout)
@@ -83,7 +93,24 @@ struct SettingsView: View {
                 isOn: Binding(get: { store.launchAtLogin }, set: { store.setLaunchAtLogin($0) })
             )
             .toggleStyle(.checkbox)
+
+            Divider()
+
+            HStack {
+                Text(Self.version).font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Link("GitHub", destination: URL(string: "https://github.com/bombadiltom/ClaudeWatch")!)
+                    .font(.caption)
+            }
         }
+    }
+
+    /// "ClaudeWatch 1.4 (52)"
+    static var version: String {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let short = info["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info["CFBundleVersion"] as? String ?? "?"
+        return "ClaudeWatch \(short) (\(build))"
     }
 
     private func binding(_ id: PinnedSession.ID, _ field: WritableKeyPath<PinnedSession, String>) -> Binding<String> {

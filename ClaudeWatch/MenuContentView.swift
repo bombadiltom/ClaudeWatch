@@ -208,16 +208,23 @@ private struct PlanUsageView: View {
             if let usage {
                 ForEach(usage.limits) { limit in
                     VStack(alignment: .leading, spacing: 2) {
-                        HStack {
+                        HStack(alignment: .firstTextBaseline) {
                             Text(limit.label).font(.callout)
+                            if let reset = limit.resetsAt {
+                                Text("resets about \(reset.formatted(date: .omitted, time: .shortened))")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
                             Spacer()
-                            Text("\(Int(limit.utilization.rounded()))% used").monospacedDigit()
+                            Text("\(limit.isEstimated ? "≈ " : "")\(Int(limit.utilization.rounded()))% used").monospacedDigit()
                         }
                         ProgressView(value: min(limit.utilization, 100), total: 100)
                             .tint(limit.utilization >= 90 ? .red : limit.utilization >= 70 ? .orange : .accentColor)
                     }
                 }
-                Text("Claude Desktop saves these every 15 minutes, so they can trail its own Usage view.")
+                Text(usage.limits.contains(where: \.isEstimated)
+                     ? "≈ adds your Claude Code use since Desktop's last reading, which Desktop saves every 15 minutes. Desktop chats aren't included, so it can run a little low."
+                     : "Claude Desktop saves these every 15 minutes, so they can trail its own Usage view.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -265,7 +272,17 @@ private struct GroupSection: View {
 
     var body: some View {
         if row.totals.requests > 0 {
-            MenuSection(title: row.title) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(row.title.uppercased())
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(Format.money(row.totals.cost)).font(.callout.weight(.semibold)).monospacedDigit()
+                    Text("·").foregroundStyle(.secondary)
+                    Text("\(Format.tokens(row.totals.tokens)) tokens").font(.callout.weight(.semibold)).monospacedDigit()
+                }
+                .help("Everything in this section: AWS cost plus the plan usage valued at API list prices.")
                 HStack {
                     Text(costBreakdown).font(.caption).foregroundStyle(.secondary)
                     Spacer()

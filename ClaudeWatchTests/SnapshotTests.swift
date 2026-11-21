@@ -26,6 +26,7 @@ final class SnapshotTests: XCTestCase {
             try render(MenuContentView(store: store, expanded: expanded), to: dir.appendingPathComponent("menu-\(period).png"))
             try render(MenuBarLabel(store: store).padding(4).background(.white), to: dir.appendingPathComponent("menubar-\(period).png"))
         }
+        try render(SettingsView(store: store, done: {}).padding(14).frame(width: 380), to: dir.appendingPathComponent("settings.png"))
     }
 
     private func render<V: View>(_ view: V, to url: URL) throws {
