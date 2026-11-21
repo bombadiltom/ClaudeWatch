@@ -197,10 +197,12 @@ private struct PlanUsageView: View {
                 Text("Plan limits").font(.subheadline.weight(.semibold))
                 Spacer()
                 if let usage {
-                    Text(asOf(usage))
-                        .font(.caption2)
-                        .foregroundStyle(usage.isStale() ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
-                        .help("Claude Desktop records your plan usage about every 15 minutes while it runs.")
+                    // Re-evaluated every 30 s, so the age and the stale colour don't freeze.
+                    TimelineView(.periodic(from: .now, by: 30)) { context in
+                        Text(Self.source(usage, now: context.date))
+                            .font(.caption2)
+                            .foregroundStyle(usage.isStale(now: context.date) ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+                    }
                 }
             }
             if let usage {
@@ -215,6 +217,10 @@ private struct PlanUsageView: View {
                             .tint(limit.utilization >= 90 ? .red : limit.utilization >= 70 ? .orange : .accentColor)
                     }
                 }
+                Text("Claude Desktop saves these every 15 minutes, so they can trail its own Usage view.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text("Claude Desktop records your 5-hour and weekly plan usage while it runs. Open Claude Desktop to see it here.")
                     .font(.caption)
@@ -226,9 +232,13 @@ private struct PlanUsageView: View {
         .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
     }
 
-    private func asOf(_ usage: PlanUsage) -> String {
-        let when = usage.asOf.formatted(.relative(presentation: .named))
-        return usage.isStale() ? "Claude Desktop not running · as of \(when)" : "Claude Desktop · \(when)"
+    /// "Claude Desktop · 13:26", or "Claude Desktop not running · Mon 13:26" for an old sample.
+    static func source(_ usage: PlanUsage, now: Date = .now) -> String {
+        let sameDay = Calendar.current.isDate(usage.asOf, inSameDayAs: now)
+        let time = sameDay
+            ? usage.asOf.formatted(date: .omitted, time: .shortened)
+            : usage.asOf.formatted(.dateTime.weekday(.abbreviated).hour().minute())
+        return usage.isStale(now: now) ? "Claude Desktop not running · \(time)" : "Claude Desktop · \(time)"
     }
 }
 

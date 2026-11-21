@@ -31,7 +31,7 @@ Claude Code writes every session to `~/.claude/projects/<folder>/<session-id>.js
 
 - **Bedrock regional pricing.** AWS documents that global cross-Region inference for Claude Sonnet 4.5 costs about 10% less than geographic (`eu.`, `us.`, `apac.`) inference profiles ([AWS docs](https://docs.aws.amazon.com/bedrock/latest/userguide/global-cross-region-inference.html)). If your AWS bill shows a premium over Anthropic list prices, set **Bedrock surcharge** in Settings.
 - **Claude Desktop chats** (not Code sessions) aren't stored on your Mac, so their tokens don't appear here. The plan-limit bars include them, because the plan counts all usage together.
-- **Plan limits need Claude Desktop.** Without it running, the bars show the last sample and say how old it is. Desktop doesn't record when the windows reset. The file isn't a documented format and may change.
+- **Plan limits trail Claude Desktop by up to 15 minutes.** Desktop's own Usage view fetches fresh numbers from claude.ai, but it saves them to disk only every 15 minutes, so during heavy use ClaudeWatch can show a few percent less. The menu shows the time of the sample. Without Desktop running, the bars keep the last sample. Desktop doesn't save when the windows reset, so ClaudeWatch can't show reset times. The file isn't a documented format and may change.
 - **Prices** are built in (`ClaudeWatch/Pricing.swift`). A model that's missing shows as "unpriced" instead of guessing.
 
 ## Install with Homebrew
