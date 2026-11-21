@@ -94,6 +94,11 @@ final class TranscriptTests: XCTestCase {
         try handle.close()
         result = await scanner.scan()
         XCTAssertEqual(Set(result.entries.map(\.messageID)), ["m1", "m2"])
+
+        // Claude Code deletes old transcripts; their usage stays.
+        try FileManager.default.removeItem(at: file)
+        result = await scanner.scan()
+        XCTAssertEqual(Set(result.entries.map(\.messageID)), ["m1", "m2"])
     }
 }
 

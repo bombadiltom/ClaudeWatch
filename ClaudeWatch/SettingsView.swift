@@ -53,7 +53,7 @@ struct SettingsView: View {
                     .multilineTextAlignment(.trailing)
                 Text("%")
             }
-            .help("Added to Anthropic list prices for Bedrock requests. AWS charges more for geographic (eu., us.) inference profiles on some models; check your AWS bill.")
+            .help("Added to Anthropic list prices for Bedrock requests. Geographic (eu., us., jp. …) and in-region inference profiles cost 10% more than global ones for current Claude models, so set 10 if you use them.")
 
             HStack {
                 Text("Notify when today's AWS cost passes")

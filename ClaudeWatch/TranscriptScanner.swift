@@ -95,11 +95,9 @@ actor TranscriptScanner {
             changed = true
         }
 
-        let removed = files.keys.filter { !seen.contains($0) }
-        if !removed.isEmpty {
-            for path in removed { files.removeValue(forKey: path) }
-            changed = true
-        }
+        // Files that disappeared keep their entries: Claude Code deletes transcripts after
+        // `cleanupPeriodDays` (30 by default), and their usage still happened. A moved file's
+        // entries are counted once, because `merged()` removes duplicates by message id.
         if changed { saveCache() }
         return merged()
     }
