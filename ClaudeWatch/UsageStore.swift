@@ -4,14 +4,16 @@ import ServiceManagement
 @preconcurrency import UserNotifications
 
 enum MenuBarDisplay: String, CaseIterable, Identifiable {
-    case planAndCloud, plan, cloudToday, iconOnly
+    case planAndCloud, plan
+    case cloud = "cloudToday"
+    case iconOnly
 
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .planAndCloud: "5-hour plan usage + AWS cost today"
+        case .planAndCloud: "5-hour plan usage + AWS cost"
         case .plan: "5-hour plan usage"
-        case .cloudToday: "AWS cost today"
+        case .cloud: "AWS cost"
         case .iconOnly: "Icon only"
         }
     }
@@ -23,7 +25,8 @@ final class UsageStore {
     static let scanInterval: TimeInterval = 30
 
     private(set) var report = UsageReport.empty
-    private(set) var today = Totals()
+    /// AWS cost of each period, for the menu bar (which shows the selected period).
+    private(set) var cloudCostByPeriod: [Period: Double] = [:]
     private(set) var isScanning = false
     private(set) var hasScanned = false
     private(set) var lastUpdated: Date?
@@ -32,8 +35,8 @@ final class UsageStore {
     private(set) var notificationsAllowed = true
     private(set) var launchAtLogin = SMAppService.mainApp.status == .enabled
 
-    var period: Period = .today {
-        didSet { rebuild() }
+    var period: Period {
+        didSet { defaults.set(period.rawValue, forKey: Keys.period); rebuild() }
     }
 
     var pinned: [PinnedSession] {
@@ -76,6 +79,7 @@ final class UsageStore {
         } else {
             pinned = []
         }
+        period = Period(rawValue: defaults.string(forKey: Keys.period) ?? "") ?? .today
         cloudSurchargePercent = defaults.double(forKey: Keys.surcharge)
         menuBarDisplay = MenuBarDisplay(rawValue: defaults.string(forKey: Keys.display) ?? "") ?? .planAndCloud
         dailyBudget = defaults.double(forKey: Keys.budget)
@@ -125,14 +129,7 @@ final class UsageStore {
             entries: scan.entries, period: period, pinned: pinned, titles: titles, live: live,
             cloudSurcharge: surcharge, factors: factors
         )
-        if period == .today {
-            today = report.overall
-        } else {
-            today = UsageReport.build(
-                entries: scan.entries, period: .today, pinned: [], titles: [:], live: [],
-                cloudSurcharge: surcharge, factors: factors
-            ).overall
-        }
+        cloudCostByPeriod = UsageReport.cloudCosts(entries: scan.entries, cloudSurcharge: surcharge, factors: factors)
         evaluateBudget()
     }
 
@@ -163,13 +160,14 @@ final class UsageStore {
     // MARK: - Budget alert
 
     private func evaluateBudget() {
-        guard dailyBudget > 0, hasScanned, today.cloudCost >= dailyBudget else { return }
+        let today = cloudCostByPeriod[.today] ?? 0
+        guard dailyBudget > 0, hasScanned, today >= dailyBudget else { return }
         let day = Self.dayKey(.now)
         guard defaults.string(forKey: Keys.budgetAlertDay) != day else { return }
         defaults.set(day, forKey: Keys.budgetAlertDay)
 
         let content = UNMutableNotificationContent()
-        content.title = "AWS spend today: \(Format.money(today.cloudCost))"
+        content.title = "AWS spend today: \(Format.money(today))"
         content.body = "Your Claude Code sessions on Bedrock passed your daily budget of \(Format.money(dailyBudget))."
         content.sound = .default
         UNUserNotificationCenter.current().add(
@@ -206,6 +204,7 @@ final class UsageStore {
         static let display = "menuBarDisplay"
         static let budget = "dailyBudget"
         static let budgetAlertDay = "budgetAlertDay"
+        static let period = "period"
     }
 }
 

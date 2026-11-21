@@ -155,6 +155,21 @@ struct UsageReport: Sendable, Equatable {
         return report
     }
 
+    /// AWS (and Google Cloud) cost of every period in one pass, priced like `Totals.add`.
+    static func cloudCosts(
+        entries: [UsageEntry], cloudSurcharge: Double, factors: [String: Double] = [:], now: Date = .now
+    ) -> [Period: Double] {
+        let starts = Period.allCases.map { ($0, $0.start(now: now)) }
+        var result = Dictionary(uniqueKeysWithValues: Period.allCases.map { ($0, 0.0) })
+        for entry in entries where entry.backend.isCloudBilled {
+            let cost = (Pricing.cost(of: entry) ?? 0) * (factors[entry.messageID] ?? 1) * (1 + cloudSurcharge)
+            for (period, start) in starts where start.map({ entry.timestamp >= $0 }) ?? true {
+                result[period, default: 0] += cost
+            }
+        }
+        return result
+    }
+
     private static func add(_ entry: UsageEntry, factor: Double, to row: inout UsageRow, cloudSurcharge: Double) {
         row.totals.add(entry, factor: factor, cloudSurcharge: cloudSurcharge)
         row.models[Pricing.normalize(entry.model), default: Totals()].add(entry, factor: factor, cloudSurcharge: cloudSurcharge)

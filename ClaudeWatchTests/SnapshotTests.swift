@@ -24,6 +24,7 @@ final class SnapshotTests: XCTestCase {
             var expanded = Set(store.report.pinned.prefix(1).map(\.id))
             if let project = store.report.desktop.children.first { expanded.insert(project.id) }
             try render(MenuContentView(store: store, expanded: expanded), to: dir.appendingPathComponent("menu-\(period).png"))
+            try render(MenuBarLabel(store: store).padding(4).background(.white), to: dir.appendingPathComponent("menubar-\(period).png"))
         }
     }
 

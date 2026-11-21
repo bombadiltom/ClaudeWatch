@@ -19,10 +19,12 @@ struct MenuContentView: View {
                 usage
             }
         }
-        .padding(14)
+        .padding(Self.inset)
         .frame(width: 380)
         .onAppear { store.refresh() }
     }
+
+    static let inset: CGFloat = 14
 
     // MARK: - Usage page
 
@@ -65,7 +67,11 @@ struct MenuContentView: View {
                         GroupSection(row: store.report.otherCLI, expanded: $expanded, note: nil,
                                      sessionAction: pinAction)
                     }
+                    // Inset the rows, not the scroll view, so the scroller sits at the popover's edge
+                    // instead of on top of the numbers.
+                    .padding(.horizontal, Self.inset)
                 }
+                .padding(.horizontal, -Self.inset)
                 .frame(maxHeight: 420)
                 .fixedSize(horizontal: false, vertical: true)
             }

@@ -125,6 +125,10 @@ final class ReportTests: XCTestCase {
         XCTAssertEqual(report.otherCLI.totals.requests, 1)
         XCTAssertEqual(report.overall.cloudCost, 8.8, accuracy: 0.0001)
         XCTAssertEqual(report.overall.planValue, 8, accuracy: 0.0001)
+
+        let costs = UsageReport.cloudCosts(entries: entries, cloudSurcharge: 0.1, now: now)
+        XCTAssertEqual(costs[.today] ?? 0, report.overall.cloudCost, accuracy: 0.0001)
+        XCTAssertEqual(costs[.all] ?? 0, 13.2, accuracy: 0.0001)
     }
 }
 
