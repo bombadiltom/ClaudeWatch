@@ -17,7 +17,7 @@
 # Local prerequisites for --build-only / --publish-existing-tag (see README.md → Releasing):
 #   - a "Developer ID Application" certificate in the keychain
 #   - notarization credentials stored with:
-#       xcrun notarytool store-credentials BluetoothBatteryWatch --apple-id <apple-id> --team-id <team-id>
+#       xcrun notarytool store-credentials BombadilTom --apple-id <apple-id> --team-id <team-id>
 #   - gh logged in as $GH_USER (default: bombadiltom), or GH_TOKEN set
 #
 # Environment overrides used by CI: NOTARY_KEYCHAIN (keychain holding the notary profile),
@@ -38,7 +38,7 @@ REPO="bombadiltom/ClaudeWatch"
 TAP_REPO="bombadiltom/homebrew-tap"
 CASK_TOKEN="claudewatch"
 BUNDLE_ID="de.lorenz-unna.claudewatch"
-NOTARY_PROFILE="${NOTARY_PROFILE:-BluetoothBatteryWatch}"  # the team-wide notarytool profile on the release Mac
+NOTARY_PROFILE="${NOTARY_PROFILE:-BombadilTom}"  # the team-wide notarytool profile on the release Mac
 SIGN_IDENTITY="${SIGN_IDENTITY:-Developer ID Application}"
 TEAM_ID="${TEAM_ID:-K6QN2C7Q55}"
 GH_USER="${GH_USER:-bombadiltom}"

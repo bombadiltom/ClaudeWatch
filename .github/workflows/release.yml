@@ -31,7 +31,7 @@ concurrency:
 
 env:
   TEAM_ID: K6QN2C7Q55
-  NOTARY_PROFILE: BluetoothBatteryWatch
+  NOTARY_PROFILE: BombadilTom
 
 jobs:
   release:

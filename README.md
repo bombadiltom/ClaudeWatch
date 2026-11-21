@@ -66,4 +66,4 @@ This tags the commit as `v1.1` and pushes the tag. The [Release action](.github/
 
 - `scripts/release.sh 1.1 --build-only` builds and notarizes locally without publishing.
 - `scripts/release.sh 1.1 --publish-existing-tag` (with the tag checked out) does the action's work locally.
-- The action needs repository secrets. Run `scripts/setup-ci-secrets.sh` yourself once to set them. Local releases need a Developer ID certificate, a `notarytool` keychain profile (`BluetoothBatteryWatch` by default, override with `NOTARY_PROFILE`) and `gh` logged in as `bombadiltom`.
+- The action needs repository secrets. Run `scripts/setup-ci-secrets.sh` yourself once to set them. Local releases need a Developer ID certificate, a `notarytool` keychain profile (`BombadilTom` by default, override with `NOTARY_PROFILE`) and `gh` logged in as `bombadiltom`.
