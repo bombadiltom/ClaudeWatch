@@ -1,9 +1,9 @@
 #!/usr/bin/env swift
-// Renders the TokenTally app icon into TokenTally/Assets.xcassets/AppIcon.appiconset.
+// Renders the ClaudeWatch app icon into ClaudeWatch/Assets.xcassets/AppIcon.appiconset.
 // Usage (from the repo root): swift scripts/make-icon.swift
 import AppKit
 
-let outputDir = URL(fileURLWithPath: "TokenTally/Assets.xcassets/AppIcon.appiconset")
+let outputDir = URL(fileURLWithPath: "ClaudeWatch/Assets.xcassets/AppIcon.appiconset")
 
 func renderMaster(size: CGFloat) -> NSBitmapImageRep {
     let rep = NSBitmapImageRep(

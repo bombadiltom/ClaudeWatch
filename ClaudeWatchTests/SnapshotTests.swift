@@ -1,18 +1,18 @@
 import AppKit
 import SwiftUI
 import XCTest
-@testable import TokenTally
+@testable import ClaudeWatch
 
 /// Renders the menu with your real data to a PNG, for looking at the layout without clicking the
-/// menu bar. Skipped unless `TOKENTALLY_SNAPSHOT_DIR` is set:
+/// menu bar. Skipped unless `CLAUDEWATCH_SNAPSHOT_DIR` is set:
 ///
-///     TEST_RUNNER_TOKENTALLY_SNAPSHOT_DIR=/tmp/shots xcodebuild test -scheme TokenTally \
-///       -only-testing:TokenTallyTests/SnapshotTests
+///     TEST_RUNNER_CLAUDEWATCH_SNAPSHOT_DIR=/tmp/shots xcodebuild test -scheme ClaudeWatch \
+///       -only-testing:ClaudeWatchTests/SnapshotTests
 @MainActor
 final class SnapshotTests: XCTestCase {
     func testRenderMenu() async throws {
-        guard let path = ProcessInfo.processInfo.environment["TOKENTALLY_SNAPSHOT_DIR"] else {
-            throw XCTSkip("set TOKENTALLY_SNAPSHOT_DIR to render the menu")
+        guard let path = ProcessInfo.processInfo.environment["CLAUDEWATCH_SNAPSHOT_DIR"] else {
+            throw XCTSkip("set CLAUDEWATCH_SNAPSHOT_DIR to render the menu")
         }
         let dir = URL(fileURLWithPath: path)
         let store = UsageStore()
@@ -46,7 +46,7 @@ final class SnapshotTests: XCTestCase {
 @MainActor
 final class SettingsViewTests: XCTestCase {
     func testRemovingPinsKeepsRendering() throws {
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: "TokenTallyTests.\(UUID().uuidString)"))
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "ClaudeWatchTests.\(UUID().uuidString)"))
         let store = UsageStore(defaults: defaults)
         store.pinned = [
             PinnedSession(label: "one", sessionID: "11111111-1111-1111-1111-111111111111"),

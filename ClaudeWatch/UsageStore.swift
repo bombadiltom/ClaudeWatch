@@ -155,7 +155,7 @@ final class UsageStore {
                 try SMAppService.mainApp.unregister()
             }
         } catch {
-            NSLog("TokenTally: launch-at-login change failed: \(error)")
+            NSLog("ClaudeWatch: launch-at-login change failed: \(error)")
         }
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }

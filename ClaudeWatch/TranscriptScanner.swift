@@ -63,7 +63,7 @@ actor TranscriptScanner {
 
     static var defaultCacheURL: URL? {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
-            .appendingPathComponent("de.lorenz-unna.tokentally", isDirectory: true)
+            .appendingPathComponent("de.lorenz-unna.claudewatch", isDirectory: true)
             .appendingPathComponent("transcripts-v\(Cache.currentVersion).json")
     }
 
@@ -308,7 +308,7 @@ actor TranscriptScanner {
             let data = try JSONEncoder().encode(Cache(version: Cache.currentVersion, files: files))
             try data.write(to: cacheURL, options: .atomic)
         } catch {
-            NSLog("TokenTally: couldn't write the transcript cache: \(error)")
+            NSLog("ClaudeWatch: couldn't write the transcript cache: \(error)")
         }
     }
 }

@@ -9,10 +9,10 @@
 # "Developer ID Application: Tom Lorenz (K6QN2C7Q55)" → Export… → choose a password.
 set -euo pipefail
 
-REPO="bombadiltom/TokenTally"
+REPO="bombadiltom/ClaudeWatch"
 TAP_REPO="bombadiltom/homebrew-tap"
 GH_USER="${GH_USER:-bombadiltom}"
-DEPLOY_KEY_TITLE="TokenTally release action"
+DEPLOY_KEY_TITLE="ClaudeWatch release action"
 
 GH_TOKEN="$(gh auth token --user "$GH_USER")"
 export GH_TOKEN
@@ -34,7 +34,8 @@ echo "==> Creating a write deploy key on $TAP_REPO for cask updates"
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 ssh-keygen -q -t ed25519 -N "" -C "$DEPLOY_KEY_TITLE" -f "$WORK_DIR/tap_key"
-OLD_KEY_IDS="$(gh api "repos/$TAP_REPO/keys" --jq ".[] | select(.title == \"$DEPLOY_KEY_TITLE\") | .id")"
+# Also removes the key from when the app was called TokenTally.
+OLD_KEY_IDS="$(gh api "repos/$TAP_REPO/keys" --jq ".[] | select(.title == \"$DEPLOY_KEY_TITLE\" or .title == \"TokenTally release action\") | .id")"
 for id in $OLD_KEY_IDS; do gh api -X DELETE "repos/$TAP_REPO/keys/$id"; done
 gh repo deploy-key add "$WORK_DIR/tap_key.pub" --repo "$TAP_REPO" --title "$DEPLOY_KEY_TITLE" --allow-write
 gh secret set TAP_DEPLOY_KEY --repo "$REPO" < "$WORK_DIR/tap_key"

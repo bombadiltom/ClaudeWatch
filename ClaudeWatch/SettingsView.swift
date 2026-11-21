@@ -68,7 +68,7 @@ struct SettingsView: View {
             if store.dailyBudget > 0 && !store.notificationsAllowed {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Image(systemName: "bell.slash").foregroundStyle(.orange)
-                    Text("Notifications are off for TokenTally.").font(.callout)
+                    Text("Notifications are off for ClaudeWatch.").font(.callout)
                     Button("Settings…") {
                         if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") {
                             NSWorkspace.shared.open(url)

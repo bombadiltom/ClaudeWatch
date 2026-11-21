@@ -1,5 +1,5 @@
 import XCTest
-@testable import TokenTally
+@testable import ClaudeWatch
 
 final class PricingTests: XCTestCase {
     func testNormalizesProviderDecorations() {

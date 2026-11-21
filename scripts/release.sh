@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Releases TokenTally.
+# Releases ClaudeWatch.
 #
 #   scripts/release.sh <version>
 #       Normal release: tags the current (pushed) commit as v<version> and pushes the tag.
@@ -33,11 +33,11 @@ case "$MODE" in
 esac
 [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]] || { echo "error: version must look like 1.2 or 1.2.3" >&2; exit 2; }
 
-APP_NAME="TokenTally"
-REPO="bombadiltom/TokenTally"
+APP_NAME="ClaudeWatch"
+REPO="bombadiltom/ClaudeWatch"
 TAP_REPO="bombadiltom/homebrew-tap"
-CASK_TOKEN="tokentally"
-BUNDLE_ID="de.lorenz-unna.tokentally"
+CASK_TOKEN="claudewatch"
+BUNDLE_ID="de.lorenz-unna.claudewatch"
 NOTARY_PROFILE="${NOTARY_PROFILE:-BluetoothBatteryWatch}"  # the team-wide notarytool profile on the release Mac
 SIGN_IDENTITY="${SIGN_IDENTITY:-Developer ID Application}"
 TEAM_ID="${TEAM_ID:-K6QN2C7Q55}"

@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct TokenTallyApp: App {
+struct ClaudeWatchApp: App {
     @State private var store = UsageStore()
 
     var body: some Scene {

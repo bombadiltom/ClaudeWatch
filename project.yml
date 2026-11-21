@@ -1,4 +1,4 @@
-name: TokenTally
+name: ClaudeWatch
 options:
   bundleIdPrefix: de.lorenz-unna
   deploymentTarget:
@@ -9,48 +9,48 @@ settings:
     MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: "1"
 targets:
-  TokenTally:
+  ClaudeWatch:
     type: application
     platform: macOS
     sources:
-      - TokenTally
+      - ClaudeWatch
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: de.lorenz-unna.tokentally
+        PRODUCT_BUNDLE_IDENTIFIER: de.lorenz-unna.claudewatch
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGN_STYLE: Manual
         ENABLE_HARDENED_RUNTIME: YES
         GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     info:
-      path: TokenTally/Info.plist
+      path: ClaudeWatch/Info.plist
       properties:
-        CFBundleDisplayName: TokenTally
+        CFBundleDisplayName: ClaudeWatch
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSUIElement: true
         LSApplicationCategoryType: public.app-category.developer-tools
         NSHumanReadableCopyright: ""
-  TokenTallyTests:
+  ClaudeWatchTests:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - TokenTallyTests
+      - ClaudeWatchTests
     dependencies:
-      - target: TokenTally
+      - target: ClaudeWatch
     settings:
       base:
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGN_STYLE: Manual
         GENERATE_INFOPLIST_FILE: YES
-        TEST_HOST: $(BUILT_PRODUCTS_DIR)/TokenTally.app/Contents/MacOS/TokenTally
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/ClaudeWatch.app/Contents/MacOS/ClaudeWatch
         BUNDLE_LOADER: $(TEST_HOST)
 schemes:
-  TokenTally:
+  ClaudeWatch:
     build:
       targets:
-        TokenTally: all
-        TokenTallyTests: [test]
+        ClaudeWatch: all
+        ClaudeWatchTests: [test]
     test:
       targets:
-        - TokenTallyTests
+        - ClaudeWatchTests
