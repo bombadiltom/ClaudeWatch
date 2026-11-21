@@ -75,7 +75,17 @@ struct SettingsView: View {
             }
             .help("0 turns the alert off. You get one notification per 5-hour window.")
 
-            if (store.dailyBudget > 0 || store.planAlertPercent > 0) && !store.notificationsAllowed {
+            HStack {
+                Text("Notify when weekly plan usage reaches")
+                Spacer()
+                TextField("off", value: $store.weeklyAlertPercent, format: .number.precision(.fractionLength(0)))
+                    .frame(width: 50)
+                    .multilineTextAlignment(.trailing)
+                Text("%")
+            }
+            .help("0 turns the alert off. You get one notification per week.")
+
+            if (store.dailyBudget > 0 || store.planAlertPercent > 0 || store.weeklyAlertPercent > 0) && !store.notificationsAllowed {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Image(systemName: "bell.slash").foregroundStyle(.orange)
                     Text("Notifications are off for ClaudeWatch.").font(.callout)

@@ -73,6 +73,15 @@ final class UsageStore {
         }
     }
 
+    /// Notify when the weekly plan usage reaches this percentage. 0 turns it off.
+    var weeklyAlertPercent: Double {
+        didSet {
+            defaults.set(weeklyAlertPercent, forKey: Keys.weeklyAlert)
+            if weeklyAlertPercent > 0 { requestNotificationPermission() }
+            evaluatePlanAlert()
+        }
+    }
+
     private let scanner = TranscriptScanner()
     private var scan = ScanResult(entries: [], titles: [:])
     private var factors: [String: Double] = [:]
@@ -96,10 +105,11 @@ final class UsageStore {
         menuBarDisplay = MenuBarDisplay(rawValue: defaults.string(forKey: Keys.display) ?? "") ?? .planAndCloud
         dailyBudget = defaults.double(forKey: Keys.budget)
         planAlertPercent = defaults.object(forKey: Keys.planAlert) as? Double ?? 80
+        weeklyAlertPercent = defaults.object(forKey: Keys.weeklyAlert) as? Double ?? 80
 
         UNUserNotificationCenter.current().delegate = notificationDelegate
         Task { await updateNotificationStatus() }
-        if planAlertPercent > 0 || dailyBudget > 0 { requestNotificationPermission() }
+        if planAlertPercent > 0 || weeklyAlertPercent > 0 || dailyBudget > 0 { requestNotificationPermission() }
 
         refresh()
         timers.append(Timer.scheduledTimer(withTimeInterval: Self.scanInterval, repeats: true) { [weak self] _ in
@@ -202,30 +212,42 @@ final class UsageStore {
         )
     }
 
-    // MARK: - 5-hour plan alert
+    // MARK: - Plan alerts
 
-    /// Notifies once when the 5-hour usage reaches `planAlertPercent`, and again only after it has
-    /// dropped below (a new window).
+    /// Notifies once when the 5-hour or weekly usage reaches its threshold, and again only after it
+    /// has dropped below (a new window).
     private func evaluatePlanAlert() {
-        guard planAlertPercent > 0, let usage = planUsage?.fiveHour() else { return }
-        let fired = defaults.bool(forKey: Keys.planAlertFired)
-        if usage < planAlertPercent {
-            if fired { defaults.set(false, forKey: Keys.planAlertFired) }
+        guard let usage = planUsage else { return }
+        alert(
+            usage: usage.fiveHour(), threshold: planAlertPercent, firedKey: Keys.planAlertFired,
+            name: "5-hour", resetsAt: usage.limit(PlanUsageReader.fiveHour)?.resetsAt
+        )
+        alert(
+            usage: usage.limit(PlanUsageReader.weekly)?.utilization, threshold: weeklyAlertPercent,
+            firedKey: Keys.weeklyAlertFired, name: "weekly", resetsAt: nil
+        )
+    }
+
+    private func alert(usage: Double?, threshold: Double, firedKey: String, name: String, resetsAt: Date?) {
+        guard threshold > 0, let usage else { return }
+        let fired = defaults.bool(forKey: firedKey)
+        if usage < threshold {
+            if fired { defaults.set(false, forKey: firedKey) }
             return
         }
         guard !fired else { return }
-        defaults.set(true, forKey: Keys.planAlertFired)
+        defaults.set(true, forKey: firedKey)
 
         let content = UNMutableNotificationContent()
-        content.title = "5-hour plan usage at \(Int(usage.rounded()))%"
-        if let reset = planUsage?.limit(PlanUsageReader.fiveHour)?.resetsAt {
-            content.body = "The window resets at about \(reset.formatted(date: .omitted, time: .shortened))."
+        content.title = "\(name.prefix(1).uppercased() + name.dropFirst()) plan usage at \(Int(usage.rounded()))%"
+        if let resetsAt {
+            content.body = "The window resets at about \(resetsAt.formatted(date: .omitted, time: .shortened))."
         } else {
-            content.body = "You've passed \(Int(planAlertPercent))% of your plan's 5-hour limit."
+            content.body = "You've passed \(Int(threshold))% of your plan's \(name) limit."
         }
         content.sound = .default
         UNUserNotificationCenter.current().add(
-            UNNotificationRequest(identifier: "plan-\(Int(Date.now.timeIntervalSince1970))", content: content, trigger: nil)
+            UNNotificationRequest(identifier: "\(firedKey)-\(Int(Date.now.timeIntervalSince1970))", content: content, trigger: nil)
         )
     }
 
@@ -261,6 +283,8 @@ final class UsageStore {
         static let period = "period"
         static let planAlert = "planAlertPercent"
         static let planAlertFired = "planAlertFired"
+        static let weeklyAlert = "weeklyAlertPercent"
+        static let weeklyAlertFired = "weeklyAlertFired"
     }
 }
 
