@@ -1,0 +1,56 @@
+name: TokenTally
+options:
+  bundleIdPrefix: de.lorenz-unna
+  deploymentTarget:
+    macOS: "14.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  TokenTally:
+    type: application
+    platform: macOS
+    sources:
+      - TokenTally
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: de.lorenz-unna.tokentally
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        ENABLE_HARDENED_RUNTIME: YES
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    info:
+      path: TokenTally/Info.plist
+      properties:
+        CFBundleDisplayName: TokenTally
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSUIElement: true
+        LSApplicationCategoryType: public.app-category.developer-tools
+        NSHumanReadableCopyright: ""
+  TokenTallyTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - TokenTallyTests
+    dependencies:
+      - target: TokenTally
+    settings:
+      base:
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/TokenTally.app/Contents/MacOS/TokenTally
+        BUNDLE_LOADER: $(TEST_HOST)
+schemes:
+  TokenTally:
+    build:
+      targets:
+        TokenTally: all
+        TokenTallyTests: [test]
+    test:
+      targets:
+        - TokenTallyTests
