@@ -3,7 +3,12 @@ import SwiftUI
 
 @main
 struct ClaudeWatchApp: App {
-    @State private var store = UsageStore()
+    @State private var store: UsageStore
+
+    init() {
+        LegacyMigration.run()  // before the store reads settings and the scanner reads its cache
+        _store = State(initialValue: UsageStore())
+    }
 
     var body: some Scene {
         MenuBarExtra {

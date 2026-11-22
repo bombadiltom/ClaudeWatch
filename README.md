@@ -17,7 +17,7 @@ A menu bar app for macOS 14+ that shows how much of your Claude plan you've used
 
 Claude Code writes every session to `~/.claude/projects/<folder>/<session-id>.jsonl`. Claude Desktop's Code sessions use the same format. Each API response in those files carries its token usage, so ClaudeWatch:
 
-1. **Reads the transcripts incrementally.** Only new lines are parsed. The parsed state is cached in `~/Library/Caches/de.lorenz-unna.claudewatch`, so a relaunch takes well under a second, even with hundreds of MB of transcripts.
+1. **Reads the transcripts incrementally.** Only new lines are parsed. The parsed state is cached in `~/Library/Caches/de.idiotentruppe.claudewatch`, so a relaunch takes well under a second, even with hundreds of MB of transcripts.
 2. **Removes duplicates by message id.** Claude Code writes one line per content block, and forked sessions copy earlier messages.
 3. **Prices each request** at Anthropic list prices: input, output, cache reads, and 5-minute and 1-hour cache writes, plus fast mode. Claude Code's own cost figure uses the same rates, Bedrock sessions included.
 4. **Adds side requests.** The auto-mode classifier, summaries and titles are billed but don't appear in the transcript as messages. Claude Code keeps a running total per run (`cost-state` records), and ClaudeWatch scales each run's messages up to that total. In short sessions that can be a third of the cost.

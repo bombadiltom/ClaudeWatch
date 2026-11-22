@@ -1,6 +1,6 @@
 name: ClaudeWatch
 options:
-  bundleIdPrefix: de.lorenz-unna
+  bundleIdPrefix: de.idiotentruppe
   deploymentTarget:
     macOS: "14.0"
 settings:
@@ -16,7 +16,7 @@ targets:
       - ClaudeWatch
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: de.lorenz-unna.claudewatch
+        PRODUCT_BUNDLE_IDENTIFIER: de.idiotentruppe.claudewatch
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGN_STYLE: Manual
         ENABLE_HARDENED_RUNTIME: YES

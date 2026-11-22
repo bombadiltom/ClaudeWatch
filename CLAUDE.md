@@ -14,7 +14,8 @@ the features and the data sources. This file covers what you need to change the 
   `TEST_RUNNER_CLAUDEWATCH_SNAPSHOT_DIR=<dir> xcodebuild … test -only-testing:ClaudeWatchTests/SnapshotTests`.
   Look at the images before calling a UI change done. Scrollers and hover states don't show in them.
 - Tests that need a `UsageStore` must pass `UsageStore(defaults: UserDefaults(suiteName: …))`. The test host is
-  the app itself, so `.standard` is the user's real settings.
+  the app itself, so `.standard` is the user's real settings. For the same reason, anything the app does at
+  launch to real files (like `LegacyMigration`) must skip itself under XCTest.
 
 ## Where the data comes from
 
@@ -41,8 +42,11 @@ the features and the data sources. This file covers what you need to change the 
 - **Deleted transcripts:** Claude Code deletes transcripts after `cleanupPeriodDays`. The scanner keeps entries
   of files that disappeared, so totals don't shrink.
 - **Scanner cache:** the scanner reads incrementally (byte offset and inode per file) and caches its state in
-  `~/Library/Caches/de.lorenz-unna.claudewatch/`. If you change what it stores per entry, bump
+  `~/Library/Caches/de.idiotentruppe.claudewatch/`. If you change what it stores per entry, bump
   `Cache.currentVersion` so old caches are discarded.
+- **Bundle id:** `de.idiotentruppe.claudewatch` since 1.7; up to 1.6 it was `de.lorenz-unna.claudewatch`.
+  `LegacyMigration` copies the old settings and moves the old cache once at launch. Never drop the cache: it
+  holds the usage of deleted transcripts.
 
 ## Prices
 

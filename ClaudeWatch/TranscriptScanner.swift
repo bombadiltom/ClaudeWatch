@@ -63,7 +63,7 @@ actor TranscriptScanner {
 
     static var defaultCacheURL: URL? {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
-            .appendingPathComponent("de.lorenz-unna.claudewatch", isDirectory: true)
+            .appendingPathComponent(LegacyMigration.bundleID, isDirectory: true)
             .appendingPathComponent("transcripts-v\(Cache.currentVersion).json")
     }
 

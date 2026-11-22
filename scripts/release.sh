@@ -37,7 +37,8 @@ APP_NAME="ClaudeWatch"
 REPO="bombadiltom/ClaudeWatch"
 TAP_REPO="bombadiltom/homebrew-tap"
 CASK_TOKEN="claudewatch"
-BUNDLE_ID="de.lorenz-unna.claudewatch"
+BUNDLE_ID="de.idiotentruppe.claudewatch"
+LEGACY_BUNDLE_ID="de.lorenz-unna.claudewatch"  # up to 1.6
 NOTARY_PROFILE="${NOTARY_PROFILE:-BombadilTom}"  # the team-wide notarytool profile on the release Mac
 SIGN_IDENTITY="${SIGN_IDENTITY:-Developer ID Application}"
 TEAM_ID="${TEAM_ID:-K6QN2C7Q55}"
@@ -172,11 +173,13 @@ cask "$CASK_TOKEN" do
 
   app "$APP_NAME.app"
 
-  uninstall quit: "$BUNDLE_ID"
+  uninstall quit: ["$BUNDLE_ID", "$LEGACY_BUNDLE_ID"]
 
   zap trash: [
     "~/Library/Caches/$BUNDLE_ID",
+    "~/Library/Caches/$LEGACY_BUNDLE_ID",
     "~/Library/Preferences/$BUNDLE_ID.plist",
+    "~/Library/Preferences/$LEGACY_BUNDLE_ID.plist",
   ]
 end
 EOF
