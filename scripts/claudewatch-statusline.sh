@@ -5,7 +5,7 @@
 # These are account-wide numbers, so they include Claude Desktop chats, Cowork and claude.ai.
 # Claude Code hands them to the status line command. This script saves them where ClaudeWatch
 # reads them, so ClaudeWatch shows them within seconds instead of waiting for Claude Desktop's
-# next 15-minute sample. It also prints them as the status line.
+# next 15-minute sample. It also prints them as the status line, after the session's folder.
 #
 # Install:
 #   cp scripts/claudewatch-statusline.sh ~/.claude/ && chmod +x ~/.claude/claudewatch-statusline.sh
@@ -29,9 +29,15 @@ if limits=$(get rate_limits json); then
     mkdir -p "$dir" && printf '%s' "$limits" >"$tmp" && mv -f "$tmp" "$dir/$session.json"
 fi
 
+# The session's folder, with the home folder as ~.
 line=""
+if folder=$(get workspace.current_dir raw) || folder=$(get cwd raw); then
+    case $folder in "$HOME" | "$HOME"/*) folder="~${folder#"$HOME"}" ;; esac
+    line=$folder
+fi
 if five=$(get rate_limits.five_hour.used_percentage raw); then
-    line=$(printf '5h %.0f%%' "$five")
+    [ -n "$line" ] && line="$line · "
+    line="$line$(printf '5h %.0f%%' "$five")"
 fi
 if week=$(get rate_limits.seven_day.used_percentage raw); then
     [ -n "$line" ] && line="$line · "
