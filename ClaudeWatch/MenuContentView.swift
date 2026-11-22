@@ -56,10 +56,10 @@ struct MenuContentView: View {
                                 }
                             }
                         }
+                        GroupSection(row: store.report.otherCLI, expanded: $expanded, note: nil,
+                                     sessionAction: pinAction)
                         GroupSection(row: store.report.desktop, expanded: $expanded,
                                      note: "Plan usage counts toward your plan limits. ≈ $ is its value at API list prices.",
-                                     sessionAction: pinAction)
-                        GroupSection(row: store.report.otherCLI, expanded: $expanded, note: nil,
                                      sessionAction: pinAction)
                     }
                     // Inset the rows, not the scroll view, so the scroller sits at the popover's edge
