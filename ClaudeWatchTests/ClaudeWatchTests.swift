@@ -210,7 +210,7 @@ final class PlanEstimatorTests: XCTestCase {
         // The window starts 30 min before the first reading; $10 between the readings raised the
         // 5-hour usage by 10 points and the weekly by 1: 1 %/$ and 0.1 %/$.
         let plan = [request(-1800, 1), request(300, 4), request(600, 6), request(1200, 5)]
-        let estimate = PlanEstimator.estimate(usage(fh: 20, sd: 21, previous: (10, 20)), plan: plan, now: t0.addingTimeInterval(1500))
+        let estimate = try XCTUnwrap(PlanEstimator.estimate(usage(fh: 20, sd: 21, previous: (10, 20)), plan: plan, now: t0.addingTimeInterval(1500)))
 
         let fiveHour = try XCTUnwrap(estimate.limit("fh"))
         XCTAssertEqual(fiveHour.utilization, 25, accuracy: 0.001)
@@ -219,9 +219,32 @@ final class PlanEstimatorTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(estimate.limit("sd")).utilization, 21.5, accuracy: 0.001)
     }
 
+    func testKeepsTheReadingNextToTheEstimate() throws {
+        let plan = [request(-1800, 1), request(300, 4), request(600, 6), request(1200, 5)]
+        let estimate = try XCTUnwrap(PlanEstimator.estimate(usage(fh: 20, sd: 21, previous: (10, 20)), plan: plan, now: t0.addingTimeInterval(1500)))
+        let fiveHour = try XCTUnwrap(estimate.limit("fh"))
+        XCTAssertEqual(fiveHour.reading, PlanLimit.Reading(source: .desktop, utilization: 20, date: t0.addingTimeInterval(900)))
+        XCTAssertEqual(fiveHour.estimatedPart, 5, accuracy: 0.001)
+
+        let detail = try XCTUnwrap(PlanUsageView.detail(fiveHour, now: t0.addingTimeInterval(1500)))
+        XCTAssertTrue(detail.hasPrefix("Claude Desktop: 20% at "), detail)
+        XCTAssertTrue(detail.hasSuffix(" · ≈ +5% from Claude Code since"), detail)
+    }
+
+    func testReadingFromThePreviousWindowIsLabelled() throws {
+        let plan = [request(-1800, 1), request(300, 4), request(600, 6), request(6 * 3600, 1), request(6 * 3600 + 60, 2)]
+        let now = t0.addingTimeInterval(6 * 3600 + 120)
+        let estimate = try XCTUnwrap(PlanEstimator.estimate(usage(fh: 20, sd: 21, previous: (10, 20)), plan: plan, now: now))
+        let fiveHour = try XCTUnwrap(estimate.limit("fh"))
+        XCTAssertEqual(fiveHour.utilization, fiveHour.estimatedPart, accuracy: 0.001)
+        let detail = try XCTUnwrap(PlanUsageView.detail(fiveHour, now: now))
+        XCTAssertTrue(detail.contains(": 20% at "), detail)
+        XCTAssertTrue(detail.contains(", before the reset · ≈ +3%"), detail)
+    }
+
     func testWindowThatEndedIsEmpty() throws {
         let plan = [request(-1800, 1), request(300, 4), request(600, 6)]
-        let estimate = PlanEstimator.estimate(usage(fh: 20, sd: 21, previous: (10, 20)), plan: plan, now: t0.addingTimeInterval(6 * 3600))
+        let estimate = try XCTUnwrap(PlanEstimator.estimate(usage(fh: 20, sd: 21, previous: (10, 20)), plan: plan, now: t0.addingTimeInterval(6 * 3600)))
         XCTAssertEqual(try XCTUnwrap(estimate.limit("fh")).utilization, 0)
         XCTAssertNil(estimate.limit("fh")?.resetsAt)
     }
@@ -229,7 +252,7 @@ final class PlanEstimatorTests: XCTestCase {
     func testReadingFromThePreviousWindow() throws {
         // A new window starts 6 h later with $3 of usage: 3 % at 1 %/$, not the old reading's 20 %.
         let plan = [request(-1800, 1), request(300, 4), request(600, 6), request(6 * 3600, 1), request(6 * 3600 + 60, 2)]
-        let estimate = PlanEstimator.estimate(usage(fh: 20, sd: 21, previous: (10, 20)), plan: plan, now: t0.addingTimeInterval(6 * 3600 + 120))
+        let estimate = try XCTUnwrap(PlanEstimator.estimate(usage(fh: 20, sd: 21, previous: (10, 20)), plan: plan, now: t0.addingTimeInterval(6 * 3600 + 120)))
         let fiveHour = try XCTUnwrap(estimate.limit("fh"))
         XCTAssertEqual(fiveHour.utilization, 3, accuracy: 0.001)
         XCTAssertEqual(fiveHour.resetsAt, t0.addingTimeInterval(11 * 3600))
@@ -237,9 +260,150 @@ final class PlanEstimatorTests: XCTestCase {
 
     func testNoRateWithoutEnoughHistory() throws {
         let plan = [request(-1800, 0.5), request(300, 0.5), request(1200, 5)]
-        let estimate = PlanEstimator.estimate(usage(fh: 20, sd: 21, previous: (10, 20)), plan: plan, now: t0.addingTimeInterval(1500))
+        let estimate = try XCTUnwrap(PlanEstimator.estimate(usage(fh: 20, sd: 21, previous: (10, 20)), plan: plan, now: t0.addingTimeInterval(1500)))
         XCTAssertEqual(try XCTUnwrap(estimate.limit("fh")).utilization, 20)
         XCTAssertFalse(try XCTUnwrap(estimate.limit("fh")).isEstimated)
+    }
+
+    // MARK: Claude Code's readings
+
+    private func reading(_ id: String, _ used: Double, at offset: TimeInterval, resets: TimeInterval) -> LimitReading {
+        LimitReading(id: id, utilization: used, resetsAt: t0.addingTimeInterval(resets), date: t0.addingTimeInterval(offset))
+    }
+
+    func testClaudeCodeReadingNewerThanDesktop() throws {
+        // Rates as above: 1 %/$ and 0.1 %/$. Claude Code saw 50 % at +25 min; $3 since.
+        let plan = [request(-1800, 1), request(300, 4), request(600, 6), request(1200, 5), request(2000, 3)]
+        let readings = [reading("fh", 50, at: 1500, resets: 3 * 3600), reading("sd", 30, at: 1500, resets: 3 * 86_400)]
+        let estimate = try XCTUnwrap(PlanEstimator.estimate(
+            usage(fh: 20, sd: 21, previous: (10, 20)), plan: plan, readings: readings, now: t0.addingTimeInterval(2100)
+        ))
+        let fiveHour = try XCTUnwrap(estimate.limit("fh"))
+        XCTAssertEqual(fiveHour.utilization, 53, accuracy: 0.001)
+        XCTAssertTrue(fiveHour.isEstimated)
+        // The exact reset, not the one inferred from the first request at -30 min.
+        XCTAssertEqual(fiveHour.resetsAt, t0.addingTimeInterval(3 * 3600))
+        XCTAssertTrue(fiveHour.resetIsExact)
+        XCTAssertEqual(try XCTUnwrap(estimate.limit("sd")).utilization, 30.3, accuracy: 0.001)
+        XCTAssertTrue(estimate.isLive)
+        XCTAssertEqual(estimate.updated, t0.addingTimeInterval(1500))
+    }
+
+    func testDesktopNewerThanClaudeCodeReading() throws {
+        let plan = [request(-1800, 1), request(300, 4), request(600, 6), request(1200, 5)]
+        let readings = [reading("fh", 15, at: 600, resets: 3 * 3600)]
+        let estimate = try XCTUnwrap(PlanEstimator.estimate(
+            usage(fh: 20, sd: 21, previous: (10, 20)), plan: plan, readings: readings, now: t0.addingTimeInterval(1500)
+        ))
+        let fiveHour = try XCTUnwrap(estimate.limit("fh"))
+        XCTAssertEqual(fiveHour.utilization, 25, accuracy: 0.001)
+        XCTAssertEqual(fiveHour.resetsAt, t0.addingTimeInterval(3 * 3600))
+        XCTAssertFalse(estimate.isLive)
+    }
+
+    func testWindowStartedOutsideTheTranscripts() throws {
+        // Cowork started a window at -4 h, which hit its limit at +10 min and reset at +1 h. The
+        // transcripts alone would put the window at -30 min to +4.5 h. The next window starts with
+        // the first request after the reset, at +70 min.
+        let plan = [request(-1800, 1), request(300, 4), request(600, 6), request(4200, 2)]
+        let readings = [reading("fh", 100, at: 600, resets: 3600)]
+        let estimate = try XCTUnwrap(PlanEstimator.estimate(
+            usage(fh: 20, sd: 21, previous: (10, 20)), plan: plan, readings: readings, now: t0.addingTimeInterval(4800)
+        ))
+        let fiveHour = try XCTUnwrap(estimate.limit("fh"))
+        XCTAssertEqual(fiveHour.utilization, 2, accuracy: 0.001)
+        XCTAssertEqual(fiveHour.resetsAt, t0.addingTimeInterval(4200 + 5 * 3600))
+        XCTAssertFalse(fiveHour.resetIsExact)
+    }
+
+    func testEmptyDesktopSampleStartsTheWindowAfterIt() throws {
+        // The transcripts show requests from -30 min, but Desktop saw 0 % at +15 min, so the window
+        // those requests seem to start had already ended (Cowork started it hours earlier). The
+        // running one starts with the request at +20 min.
+        let plan = [request(-1800, 1), request(300, 4), request(600, 6), request(1200, 5)]
+        let estimate = try XCTUnwrap(PlanEstimator.estimate(
+            usage(fh: 0, sd: 21, previous: (0, 20)), plan: plan, now: t0.addingTimeInterval(1500)
+        ))
+        let fiveHour = try XCTUnwrap(estimate.limit("fh"))
+        XCTAssertEqual(fiveHour.resetsAt, t0.addingTimeInterval(1200 + 5 * 3600))
+        XCTAssertFalse(fiveHour.resetIsExact)
+    }
+
+    func testWindowResetWithoutNewRequests() throws {
+        let plan = [request(-1800, 1), request(300, 4), request(600, 6)]
+        let readings = [reading("fh", 100, at: 600, resets: 3600)]
+        let estimate = try XCTUnwrap(PlanEstimator.estimate(
+            usage(fh: 20, sd: 21, previous: (10, 20)), plan: plan, readings: readings, now: t0.addingTimeInterval(4800)
+        ))
+        XCTAssertEqual(try XCTUnwrap(estimate.limit("fh")).utilization, 0)
+        XCTAssertNil(estimate.limit("fh")?.resetsAt)
+    }
+
+    func testClaudeCodeReadingsWithoutDesktop() throws {
+        XCTAssertNil(PlanEstimator.estimate(nil, plan: [], readings: [], now: t0))
+        let readings = [reading("sd", 40, at: 0, resets: 2 * 86_400), reading("fh", 12, at: 0, resets: 7200)]
+        let estimate = try XCTUnwrap(PlanEstimator.estimate(nil, plan: [], readings: readings, now: t0.addingTimeInterval(60)))
+        XCTAssertEqual(estimate.limits.map(\.id), ["fh", "sd"])
+        XCTAssertEqual(estimate.limits.map(\.utilization), [12, 40])
+        XCTAssertEqual(estimate.limits.map(\.isEstimated), [false, false])
+        XCTAssertTrue(estimate.isLive)
+        XCTAssertEqual(estimate.fiveHour(now: t0.addingTimeInterval(60)), 12)
+    }
+
+    func testNewestReadingKeepsTheHighestOfItsWindow() throws {
+        // Session B idled with an older, lower reading of the same window; an older window is ignored.
+        let readings = [
+            reading("fh", 90, at: -20_000, resets: -1000),
+            reading("fh", 45, at: 100, resets: 7200),
+            reading("fh", 30, at: 200, resets: 7205),
+        ]
+        let newest = try XCTUnwrap(PlanEstimator.newestReading("fh", in: readings))
+        XCTAssertEqual(newest.utilization, 45)
+        XCTAssertEqual(newest.date, t0.addingTimeInterval(200))
+    }
+}
+
+final class LimitReadingTests: XCTestCase {
+    func testParsesStatusLineRateLimits() {
+        let date = Date(timeIntervalSince1970: 1_800_000_000)
+        let limits = #"{"five_hour":{"used_percentage":12.5,"resets_at":1800003600},"seven_day":{"used_percentage":61,"resets_at":1800300000},"spend_limit":{"used_percentage":3,"resets_at":1800300000}}"#
+        let readings = LiveLimitsReader.parse(Data(limits.utf8), date: date).sorted { $0.id < $1.id }
+        XCTAssertEqual(readings, [
+            LimitReading(id: "fh", utilization: 12.5, resetsAt: Date(timeIntervalSince1970: 1_800_003_600), date: date),
+            LimitReading(id: "sd", utilization: 61, resetsAt: Date(timeIntervalSince1970: 1_800_300_000), date: date),
+        ])
+        // The whole status line input works too, and missing or odd values are skipped.
+        let input = #"{"session_id":"s","rate_limits":{"five_hour":{"used_percentage":7,"resets_at":"2027-01-15T08:00:00Z"},"seven_day":{"used_percentage":null}}}"#
+        XCTAssertEqual(LiveLimitsReader.parse(Data(input.utf8), date: date).map(\.utilization), [7])
+        XCTAssertEqual(LiveLimitsReader.parse(Data("[]".utf8), date: date), [])
+    }
+
+    func testReadsLimitReachedErrors() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let project = root.appendingPathComponent("-tmp-p")
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        func hit(_ status: String, _ type: String) -> String {
+            #"{"type":"assistant","timestamp":"2026-11-22T11:38:42.946Z","sessionId":"s1","message":{"id":"00000000-0000-4000-8000-000000000001","model":"<synthetic>","content":[{"type":"text","text":"You've hit your limit"}],"usage":{"input_tokens":0,"output_tokens":0}},"apiError":"usage_limit_reached","quotaLimits":{"status":"\#(status)","resetsAt":1795354800,"rateLimitType":"\#(type)"},"error":"rate_limit"}"# + "\n"
+        }
+        try (hit("rejected", "five_hour") + hit("allowed_warning", "five_hour") + hit("rejected", "overage"))
+            .write(to: project.appendingPathComponent("s1.jsonl"), atomically: true, encoding: .utf8)
+
+        let result = await TranscriptScanner(root: root, cacheURL: nil).scan()
+        XCTAssertTrue(result.entries.isEmpty)
+        XCTAssertEqual(result.limitReadings, [LimitReading(
+            id: "fh", utilization: 100, resetsAt: Date(timeIntervalSince1970: 1_795_354_800),
+            date: try XCTUnwrap(ISO8601DateFormatter.withFractionalSeconds.date(from: "2026-11-22T11:38:42.946Z"))
+        )])
+    }
+}
+
+private extension ISO8601DateFormatter {
+    static var withFractionalSeconds: ISO8601DateFormatter {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
     }
 }
 

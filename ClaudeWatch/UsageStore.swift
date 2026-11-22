@@ -23,6 +23,9 @@ enum MenuBarDisplay: String, CaseIterable, Identifiable {
 @Observable
 final class UsageStore {
     static let scanInterval: TimeInterval = 30
+    /// Plan limits change with every request anywhere on the account, and their sources are two
+    /// small files, so they're re-read more often than the transcripts.
+    static let planInterval: TimeInterval = 5
 
     private(set) var report = UsageReport.empty
     /// AWS cost of each period, for the menu bar (which shows the selected period).
@@ -30,11 +33,16 @@ final class UsageStore {
     private(set) var isScanning = false
     private(set) var hasScanned = false
     private(set) var lastUpdated: Date?
-    /// Plan utilization from Claude Desktop, brought up to date with the Claude Code usage since
-    /// Desktop's last reading (see `PlanEstimator`); nil if Desktop hasn't recorded any.
+    /// Plan utilization from Claude Desktop or Claude Code's own readings, brought up to date with
+    /// the Claude Code usage since (see `PlanEstimator`); nil if neither has recorded any.
     private(set) var planUsage: PlanUsage?
     /// Desktop's reading as saved.
     private var desktopPlanUsage: PlanUsage?
+    /// Limits Claude Code saw, from its status line (see `LiveLimitsReader`).
+    private var liveReadings: [LimitReading] = []
+    /// The last week's plan requests, kept between scans for `refreshPlan`.
+    private var planRequestCache: [PlanEstimator.Usage] = []
+    private var isReadingPlan = false
     private(set) var notificationsAllowed = true
     private(set) var launchAtLogin = SMAppService.mainApp.status == .enabled
 
@@ -115,6 +123,9 @@ final class UsageStore {
         timers.append(Timer.scheduledTimer(withTimeInterval: Self.scanInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
         })
+        timers.append(Timer.scheduledTimer(withTimeInterval: Self.planInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.refreshPlan() }
+        })
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -129,13 +140,14 @@ final class UsageStore {
         isScanning = true
         Task {
             let result = await scanner.scan()
-            let (live, titles, factors, plan) = await Task.detached(priority: .utility) {
+            let (live, titles, factors, plan, readings) = await Task.detached(priority: .utility) {
                 (SessionDirectory.liveSessions(), SessionDirectory.desktopTitles(),
                  SideRequests.factors(entries: result.entries, snapshots: result.snapshots),
-                 PlanUsageReader.read())
+                 PlanUsageReader.read(), LiveLimitsReader.read(prune: !Self.isTesting))
             }.value
             self.scan = result
             self.desktopPlanUsage = plan
+            self.liveReadings = readings
             self.factors = factors
             self.live = live
             self.desktopTitles = titles
@@ -154,10 +166,37 @@ final class UsageStore {
             cloudSurcharge: surcharge, factors: factors
         )
         cloudCostByPeriod = UsageReport.cloudCosts(entries: scan.entries, cloudSurcharge: surcharge, factors: factors)
-        let estimated = desktopPlanUsage.map { PlanEstimator.estimate($0, plan: planRequests()) }
-        if planUsage != estimated { planUsage = estimated }
+        planRequestCache = planRequests()
+        updatePlanUsage()
         evaluateBudget()
+    }
+
+    /// Re-reads only the plan limits: Desktop's samples and Claude Code's status line readings.
+    func refreshPlan() {
+        guard hasScanned, !isScanning, !isReadingPlan else { return }
+        isReadingPlan = true
+        Task {
+            let (plan, readings) = await Task.detached(priority: .utility) {
+                (PlanUsageReader.read(), LiveLimitsReader.read(prune: false))
+            }.value
+            self.isReadingPlan = false
+            self.desktopPlanUsage = plan
+            self.liveReadings = readings
+            // Even without new readings, a window may just have reset.
+            self.updatePlanUsage()
+        }
+    }
+
+    private func updatePlanUsage() {
+        let estimated = PlanEstimator.estimate(
+            desktopPlanUsage, plan: planRequestCache, readings: scan.limitReadings + liveReadings
+        )
+        if planUsage != estimated { planUsage = estimated }
         evaluatePlanAlert()
+    }
+
+    private nonisolated static var isTesting: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 
     /// The last week's plan (non-cloud) requests with their API value, for `PlanEstimator`.

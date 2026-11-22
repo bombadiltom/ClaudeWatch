@@ -27,6 +27,14 @@ final class SnapshotTests: XCTestCase {
             try render(MenuBarLabel(store: store).padding(4).background(.white), to: dir.appendingPathComponent("menubar-\(period).png"))
         }
         try render(SettingsView(store: store, done: {}).padding(14).frame(width: 380), to: dir.appendingPathComponent("settings.png"))
+
+        // The plan limits as an example Claude Code status line reading makes them.
+        let now = Date.now
+        let live = PlanEstimator.estimate(store.planUsage, plan: [], readings: [
+            LimitReading(id: PlanUsageReader.fiveHour, utilization: 3, resetsAt: now.addingTimeInterval(4.8 * 3600), date: now.addingTimeInterval(-60)),
+            LimitReading(id: PlanUsageReader.weekly, utilization: 62, resetsAt: now.addingTimeInterval(3.2 * 86_400), date: now.addingTimeInterval(-60)),
+        ], now: now)
+        try render(PlanUsageView(usage: live).padding(14).frame(width: 380), to: dir.appendingPathComponent("plan-live.png"))
     }
 
     private func render<V: View>(_ view: V, to url: URL) throws {

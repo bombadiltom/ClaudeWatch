@@ -26,6 +26,8 @@ the features and the data sources. This file covers what you need to change the 
 | Live sessions, names | `~/.claude/sessions/<pid>.json` | `SessionDirectory` |
 | Desktop session titles | `~/Library/Application Support/Claude/claude-code-sessions/*/*/local_*.json` | `SessionDirectory` |
 | Plan limits (5-hour, weekly) | `~/Library/Application Support/Claude/plan-usage-history.json` | `PlanUsageReader` |
+| Live plan limits, exact resets | `~/Library/Caches/de.idiotentruppe.claudewatch/rate-limits/<session>.json`, written by `scripts/claudewatch-statusline.sh` from Claude Code's status line input | `LiveLimitsReader` |
+| Limit reached, reset time | `quotaLimits` of the `<synthetic>` 429 error records in the transcripts | `TranscriptScanner` |
 
 - None of these formats are documented. Parse loosely and degrade quietly: return nil or skip the record,
   never crash.
@@ -35,15 +37,20 @@ the features and the data sources. This file covers what you need to change the 
   anything else counts against the plan (plan tokens, valued at API list price).
 - **Bedrock regional premium:** transcripts don't record which inference profile a session used. Geographic
   and in-region profiles cost 10% more than global ones, which is the user-set "Bedrock surcharge".
-- **Plan limits:** Desktop saves a sample only every 15 minutes. `PlanEstimator` adds the plan usage since the
-  last sample, at a %-per-dollar rate learned from Desktop's own samples. It also infers the 5-hour reset
-  from the first plan request after the previous window ended. Don't read Desktop's cookies or Claude Code's
-  keychain login to get live numbers.
+- **Plan limits:** Desktop saves a sample only every 15 minutes, and only while it runs. `PlanEstimator` adds
+  the plan usage since the last sample, at a %-per-dollar rate learned from Desktop's own samples. It also
+  infers the 5-hour reset from the first plan request after the previous window ended. Claude Code's
+  readings (`LimitReading`) are account-wide and exact, so the newest of them and Desktop's sample is the
+  base, and their reset time anchors the window. Cowork runs Claude Code inside a VM, so its transcripts
+  aren't readable from the Mac: only Desktop samples and Claude Code readings see Cowork usage. Don't read
+  Desktop's cookies or Claude Code's keychain login to get live numbers.
 - **Deleted transcripts:** Claude Code deletes transcripts after `cleanupPeriodDays`. The scanner keeps entries
   of files that disappeared, so totals don't shrink.
 - **Scanner cache:** the scanner reads incrementally (byte offset and inode per file) and caches its state in
   `~/Library/Caches/de.idiotentruppe.claudewatch/`. If you change what it stores per entry, bump
-  `Cache.currentVersion` so old caches are discarded.
+  `Cache.currentVersion` so old caches are discarded. A new `FileState` field must be optional instead:
+  Swift's synthesized `Decodable` doesn't use default values, so a non-optional one would fail to decode the
+  old cache, and with it the usage of deleted transcripts.
 - **Bundle id:** `de.idiotentruppe.claudewatch` since 1.7; up to 1.6 it was `de.lorenz-unna.claudewatch`.
   `LegacyMigration` copies the old settings and moves the old cache once at launch. Never drop the cache: it
   holds the usage of deleted transcripts.

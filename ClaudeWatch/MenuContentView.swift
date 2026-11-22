@@ -188,7 +188,7 @@ private struct Metric: View {
     }
 }
 
-private struct PlanUsageView: View {
+struct PlanUsageView: View {
     let usage: PlanUsage?
 
     var body: some View {
@@ -211,25 +211,28 @@ private struct PlanUsageView: View {
                         HStack(alignment: .firstTextBaseline) {
                             Text(limit.label).font(.callout)
                             if let reset = limit.resetsAt {
-                                Text("resets about \(reset.formatted(date: .omitted, time: .shortened))")
+                                Text("resets \(limit.resetIsExact ? "" : "about ")\(Self.time(reset))")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
                             Text("\(limit.isEstimated ? "≈ " : "")\(Int(limit.utilization.rounded()))% used").monospacedDigit()
                         }
-                        ProgressView(value: min(limit.utilization, 100), total: 100)
-                            .tint(limit.utilization >= 90 ? .red : limit.utilization >= 70 ? .orange : .accentColor)
+                        LimitBar(limit: limit)
+                        if let detail = Self.detail(limit) {
+                            Text(detail)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
-                Text(usage.limits.contains(where: \.isEstimated)
-                     ? "≈ adds your Claude Code use since Desktop's last reading, which Desktop saves every 15 minutes. Desktop chats aren't included, so it can run a little low."
-                     : "Claude Desktop saves these every 15 minutes, so they can trail its own Usage view.")
+                Text(Self.footnote(usage))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                Text("Claude Desktop records your 5-hour and weekly plan usage while it runs. Open Claude Desktop to see it here.")
+                Text("Claude Desktop records your 5-hour and weekly plan usage while it runs. Open Claude Desktop, or add ClaudeWatch's status line to Claude Code, to see it here.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -239,13 +242,71 @@ private struct PlanUsageView: View {
         .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
     }
 
-    /// "Claude Desktop · 13:26", or "Claude Desktop not running · Mon 13:26" for an old sample.
+    /// "Claude Code · 13:26" or "Claude Desktop · 13:26", whichever reported last, or
+    /// "no new reading since Mon 13:26" for an old one. Desktop doesn't save a reading every
+    /// 15 minutes all the time, even while it runs, so an old one doesn't mean it isn't running.
     static func source(_ usage: PlanUsage, now: Date = .now) -> String {
-        let sameDay = Calendar.current.isDate(usage.asOf, inSameDayAs: now)
-        let time = sameDay
-            ? usage.asOf.formatted(date: .omitted, time: .shortened)
-            : usage.asOf.formatted(.dateTime.weekday(.abbreviated).hour().minute())
-        return usage.isStale(now: now) ? "Claude Desktop not running · \(time)" : "Claude Desktop · \(time)"
+        let time = time(usage.updated, now: now)
+        if usage.isStale(now: now) { return "no new reading since \(time)" }
+        return usage.isLive ? "Claude Code · \(time)" : "Claude Desktop · \(time)"
+    }
+
+    /// The real reading behind an estimate, e.g. "Claude Desktop: 0% at Sat 22:52 · ≈ +70% from Claude
+    /// Code since". Nil when the number shown is the reading itself.
+    static func detail(_ limit: PlanLimit, now: Date = .now) -> String? {
+        guard let reading = limit.reading else { return nil }
+        let measured = limit.utilization - limit.estimatedPart
+        let resetSince = reading.utilization > measured + 0.5
+        guard limit.isEstimated || resetSince else { return nil }
+        let source = reading.source == .desktop ? "Claude Desktop" : "Claude Code"
+        var text = "\(source): \(Int(reading.utilization.rounded()))% at \(time(reading.date, now: now))"
+        if resetSince { text += ", before the reset" }
+        if limit.estimatedPart >= 0.5 {
+            text += " · ≈ +\(Int(limit.estimatedPart.rounded()))% from Claude Code since"
+        }
+        return text
+    }
+
+    /// "13:26" today, "Mon 13:26" on another day.
+    static func time(_ date: Date, now: Date = .now) -> String {
+        Calendar.current.isDate(date, inSameDayAs: now)
+            ? date.formatted(date: .omitted, time: .shortened)
+            : date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
+    }
+
+    static func footnote(_ usage: PlanUsage) -> String {
+        let estimated = usage.limits.contains(where: \.isEstimated)
+        switch (usage.isLive, estimated) {
+        case (true, false):
+            return "Claude Code gets these with every response. They count all your use, Desktop and Cowork included."
+        case (true, true):
+            return "Claude Code gets these with every response, Desktop and Cowork included. ≈ adds your Claude Code use since its last one."
+        case (false, true):
+            return "≈ adds your Claude Code use on this Mac. Chats, Cowork and other devices only count from Desktop's next reading, so it can run low. ClaudeWatch's Claude Code status line gives exact numbers."
+        case (false, false):
+            return "Claude Desktop saves these every 15 minutes, so they can trail its own Usage view. ClaudeWatch's Claude Code status line gives exact numbers."
+        }
+    }
+}
+
+/// A plan limit's bar: the measured part solid, the part estimated since the last reading lighter.
+private struct LimitBar: View {
+    let limit: PlanLimit
+
+    var body: some View {
+        let total = min(max(limit.utilization, 0), 100) / 100
+        let measured = min(max(limit.utilization - limit.estimatedPart, 0), 100) / 100
+        let tint: Color = limit.utilization >= 90 ? .red : limit.utilization >= 70 ? .orange : .accentColor
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Capsule().fill(.quaternary)
+                Capsule().fill(tint.opacity(0.4)).frame(width: geometry.size.width * total)
+                Capsule().fill(tint).frame(width: geometry.size.width * measured)
+            }
+        }
+        .frame(height: 5)
+        .accessibilityElement()
+        .accessibilityLabel("\(Int(limit.utilization.rounded()))% used")
     }
 }
 

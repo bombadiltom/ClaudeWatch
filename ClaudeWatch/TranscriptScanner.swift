@@ -8,6 +8,8 @@ struct ScanResult: Sendable {
     var titles: [String: String]
     /// Claude Code's own running cost totals, which include side requests the transcript doesn't list.
     var snapshots: [CostSnapshot] = []
+    /// Plan limits Claude Code hit ("You've hit your 5-hour limit"), with their exact reset times.
+    var limitReadings: [LimitReading] = []
 }
 
 /// A `cost-state` record: Claude Code's cumulative cost for one process run of a session.
@@ -33,6 +35,8 @@ actor TranscriptScanner {
         var titles: [String: String]
         var snapshots: [CostSnapshot] = []
         var lastEntryTime: Date?
+        /// Optional so that caches written before it existed still decode.
+        var limitReadings: [LimitReading]?
     }
 
     private struct Cache: Codable {
@@ -121,6 +125,7 @@ actor TranscriptScanner {
     private static let usageNeedle = Array(#""usage":"#.utf8)
     private static let titleNeedle = Array(#""custom-title""#.utf8)
     private static let costNeedle = Array(#""type":"cost-state""#.utf8)
+    private static let quotaNeedle = Array(#""quotaLimits""#.utf8)
 
     private static let chunkSize = 4 << 20
 
@@ -159,7 +164,8 @@ actor TranscriptScanner {
                 let end = base.distance(to: UnsafeRawPointer(newline))
                 let line = UnsafeRawBufferPointer(rebasing: buffer[start..<end])
                 let isUsage = Self.contains(Self.assistantNeedle, in: line) && Self.contains(Self.usageNeedle, in: line)
-                if isUsage || Self.contains(Self.titleNeedle, in: line) || Self.contains(Self.costNeedle, in: line) {
+                if isUsage || Self.contains(Self.titleNeedle, in: line) || Self.contains(Self.costNeedle, in: line)
+                    || Self.contains(Self.quotaNeedle, in: line) {
                     autoreleasepool { parse(Data(line), into: &state) }
                 }
                 start = end + 1
@@ -199,8 +205,21 @@ actor TranscriptScanner {
             if let entry = entry(from: object, type: type) {
                 state.entries.append(entry)
                 state.lastEntryTime = entry.timestamp
+            } else if let reading = limitReading(from: object) {
+                state.limitReadings = (state.limitReadings ?? []) + [reading]
             }
         }
+    }
+
+    /// The `quotaLimits` of a "limit reached" error: that limit is at 100 % until `resetsAt`.
+    nonisolated func limitReading(from object: [String: Any]) -> LimitReading? {
+        guard let quota = object["quotaLimits"] as? [String: Any],
+              quota["status"] as? String == "rejected",
+              let id = (quota["rateLimitType"] as? String).flatMap(LimitReading.id(for:)),
+              let resetsAt = LiveLimitsReader.date(from: quota["resetsAt"]),
+              let timestamp = (object["timestamp"] as? String).flatMap(Self.parseDate)
+        else { return nil }
+        return LimitReading(id: id, utilization: 100, resetsAt: resetsAt, date: timestamp)
     }
 
     /// Exposed for tests.
@@ -274,6 +293,7 @@ actor TranscriptScanner {
         var byID: [String: UsageEntry] = [:]
         var titles: [String: String] = [:]
         var snapshots: [CostSnapshot] = []
+        var limitReadings: [LimitReading] = []
         for state in files.values {
             for entry in state.entries {
                 if let existing = byID[entry.messageID], existing.timestamp <= entry.timestamp { continue }
@@ -281,8 +301,9 @@ actor TranscriptScanner {
             }
             titles.merge(state.titles) { _, new in new }
             snapshots += state.snapshots
+            limitReadings += state.limitReadings ?? []
         }
-        return ScanResult(entries: Array(byID.values), titles: titles, snapshots: snapshots)
+        return ScanResult(entries: Array(byID.values), titles: titles, snapshots: snapshots, limitReadings: limitReadings)
     }
 
     // MARK: - Cache
