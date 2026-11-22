@@ -28,6 +28,17 @@ final class SnapshotTests: XCTestCase {
         }
         try render(SettingsView(store: store, done: {}).padding(14).frame(width: 380), to: dir.appendingPathComponent("settings.png"))
 
+        // Live plan limits before setting up, next to a status line of your own (in a temporary folder).
+        let claude = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: claude, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: claude) }
+        try #"{"statusLine": {"type": "command", "command": "~/.claude/statusline.sh"}}"#
+            .write(to: claude.appendingPathComponent("settings.json"), atomically: true, encoding: .utf8)
+        try render(
+            LiveLimitsSetupView(lastReading: nil, setup: StatusLineSetup(claudeDirectory: claude)).padding(14).frame(width: 380),
+            to: dir.appendingPathComponent("settings-live-limits.png")
+        )
+
         // The plan limits as an example Claude Code status line reading makes them.
         let now = Date.now
         let live = PlanEstimator.estimate(store.planUsage, plan: [], readings: [

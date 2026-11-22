@@ -7,6 +7,10 @@ struct ClaudeWatchApp: App {
 
     init() {
         LegacyMigration.run()  // before the store reads settings and the scanner reads its cache
+        // An update may bring a newer status line script. Not from tests: the test host is the app.
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
+            StatusLineSetup().updateScriptIfSetUp()
+        }
         _store = State(initialValue: UsageStore())
     }
 

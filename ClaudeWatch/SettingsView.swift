@@ -98,6 +98,12 @@ struct SettingsView: View {
                 }
             }
 
+            Divider()
+
+            LiveLimitsSetupView(lastReading: store.liveLimitsUpdated)
+
+            Divider()
+
             Toggle(
                 "Launch at login",
                 isOn: Binding(get: { store.launchAtLogin }, set: { store.setLaunchAtLogin($0) })
@@ -131,5 +137,79 @@ struct SettingsView: View {
                 store.pinned[index][keyPath: field] = value
             }
         )
+    }
+}
+
+/// Sets up ClaudeWatch's status line in Claude Code, which gives the exact plan limits (see
+/// `StatusLineSetup`). Only ever on a click: it edits Claude Code's settings, not ClaudeWatch's.
+struct LiveLimitsSetupView: View {
+    let lastReading: Date?
+    var setup = StatusLineSetup()
+    @State private var state: StatusLineSetup.State?
+    @State private var error: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Live plan limits").font(.subheadline.weight(.semibold))
+                Spacer()
+                switch state {
+                case .setUp:
+                    Button("Remove") { run(setup.remove) }.controlSize(.small)
+                case .notSetUp, .otherStatusLine:
+                    Button("Set Up") { run(setup.install) }.controlSize(.small)
+                case .unreadable, nil:
+                    EmptyView()
+                }
+            }
+            Text(explanation)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let error {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .onAppear { state = setup.state() }
+    }
+
+    private var explanation: String {
+        switch state {
+        case .setUp(let wrapping):
+            let reading = lastReading.map { "Last reading \(Self.time($0))." }
+                ?? "The first reading comes with the next response in a Claude Code terminal session."
+            let yours = wrapping.map { " Your own status line (“\(Self.short($0))”) keeps running." } ?? ""
+            return "Claude Code's status line hands ClaudeWatch your exact plan limits, Desktop and Cowork included. \(reading)\(yours)"
+        case .otherStatusLine(let command):
+            return "Claude Code can hand ClaudeWatch your exact plan limits, Desktop and Cowork included, through its status line. Set Up adds ClaudeWatch's script to ~/.claude/settings.json and keeps your status line (“\(Self.short(command))”) running."
+        case .unreadable:
+            return "ClaudeWatch can't read ~/.claude/settings.json (or its status line has no command), so it can't set up live plan limits. Its README shows how to set them up by hand."
+        case .notSetUp, nil:
+            return "Claude Code can hand ClaudeWatch your exact plan limits, Desktop and Cowork included, through its status line. Set Up copies ClaudeWatch's script to ~/.claude/ and adds it to ~/.claude/settings.json. It works in terminal sessions on your plan."
+        }
+    }
+
+    private func run(_ action: () throws -> Void) {
+        do {
+            try action()
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+        state = setup.state()
+    }
+
+    private static func short(_ command: String) -> String {
+        command.count > 48 ? command.prefix(47) + "…" : command
+    }
+
+    /// "14:51" today, "Mon 14:51" on another day.
+    private static func time(_ date: Date) -> String {
+        Calendar.current.isDateInToday(date)
+            ? date.formatted(date: .omitted, time: .shortened)
+            : date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
     }
 }

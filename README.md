@@ -32,7 +32,9 @@ ClaudeWatch re-reads both every 5 seconds and shows which one the numbers came f
 
 ### Live plan limits
 
-Copy the status line script into Claude Code's folder:
+Open **Settings** and click **Set Up** next to **Live plan limits**. ClaudeWatch copies its status line script to `~/.claude/claudewatch-statusline.sh` and adds it to `~/.claude/settings.json`. It changes only the `statusLine` entry and leaves the rest of the file as it was. If you already have a status line, it stays: your command becomes the script's argument, and the script runs it with the same input and shows its output. **Remove** undoes both. After an update, ClaudeWatch refreshes the copied script. It never sets anything up on its own.
+
+To set it up by hand instead, copy the script into Claude Code's folder:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bombadiltom/ClaudeWatch/main/scripts/claudewatch-statusline.sh -o ~/.claude/claudewatch-statusline.sh
@@ -45,7 +47,7 @@ and set it as the status line in `~/.claude/settings.json`:
 "statusLine": { "type": "command", "command": "~/.claude/claudewatch-statusline.sh" }
 ```
 
-Each Claude Code session then shows its folder and the limits, like `~/Projects/acme · 5h 12% · 7d 61%`, and saves its numbers to `~/Library/Caches/de.idiotentruppe.claudewatch/rate-limits/`. ClaudeWatch takes the newest, so any running session keeps it current, while you work in Cowork too. The script uses only `/usr/bin/plutil`. If you already have a status line, call the script from yours with the same input, or copy its few lines into it. Claude Code only includes the limits for Pro and Max plans, after a session's first response.
+Each Claude Code session then shows its folder and the limits, like `~/Projects/acme · 5h 12% · 7d 61%`, and saves its numbers to `~/Library/Caches/de.idiotentruppe.claudewatch/rate-limits/`. ClaudeWatch takes the newest, so any running session keeps it current, while you work in Cowork too. The script uses only `/usr/bin/plutil`. Claude Code only includes the limits for Pro and Max plans, after a session's first response.
 
 Only Claude Code in the terminal runs the status line. Claude Desktop's Code tab doesn't, so while you work only there, ClaudeWatch goes back to Desktop's samples plus its estimate. Sessions on Bedrock or Vertex don't get plan limits either. Any terminal session on your plan that's making requests keeps the numbers exact.
 

@@ -44,6 +44,11 @@ the features and the data sources. This file covers what you need to change the 
   base, and their reset time anchors the window. Cowork runs Claude Code inside a VM, so its transcripts
   aren't readable from the Mac: only Desktop samples and Claude Code readings see Cowork usage. Don't read
   Desktop's cookies or Claude Code's keychain login to get live numbers.
+- **Status line setup:** the script ships in the app bundle (a resource in `project.yml`). `StatusLineSetup`
+  edits `~/.claude/settings.json` only when the user clicks Set Up or Remove, and only its `statusLine` entry.
+  It edits the text (`JSONText`) instead of re-encoding, so the user's file keeps its order and formatting,
+  and it writes only if the result parses to exactly the intended settings. A user's own status line is
+  kept by wrapping its command, never replaced.
 - **Deleted transcripts:** Claude Code deletes transcripts after `cleanupPeriodDays`. The scanner keeps entries
   of files that disappeared, so totals don't shrink.
 - **Scanner cache:** the scanner reads incrementally (byte offset and inode per file) and caches its state in

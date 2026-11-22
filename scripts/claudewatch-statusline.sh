@@ -7,26 +7,36 @@
 # reads them, so ClaudeWatch shows them within seconds instead of waiting for Claude Desktop's
 # next 15-minute sample. It also prints them as the status line, after the session's folder.
 #
-# Install:
-#   cp scripts/claudewatch-statusline.sh ~/.claude/ && chmod +x ~/.claude/claudewatch-statusline.sh
-# and add to ~/.claude/settings.json:
+# Set it up with ClaudeWatch › Settings › Live plan limits. That copies this script to ~/.claude/ and
+# adds it to ~/.claude/settings.json:
 #   "statusLine": { "type": "command", "command": "~/.claude/claudewatch-statusline.sh" }
+# If you already have a status line, it keeps it: your command becomes this script's argument,
+#   "command": "~/.claude/claudewatch-statusline.sh '<your command>'"
+# and the script runs it with the same input and prints what it prints instead of its own line.
 #
 # Uses only /usr/bin/plutil, no jq. It never fails the status line: unreadable input prints nothing.
 
+had_lc_all=${LC_ALL+set} lc_all=${LC_ALL-}
 export LC_ALL=C # printf reads "12.5", not a locale's "12,5"
 input=$(cat)
 dir="$HOME/Library/Caches/de.idiotentruppe.claudewatch/rate-limits"
 
 get() { printf '%s' "$input" | /usr/bin/plutil -extract "$1" "$2" -o - - 2>/dev/null; }
 
-session=$(get session_id raw) || exit 0
-case $session in "" | */* | .*) exit 0 ;; esac
+session=$(get session_id raw)
+case $session in */* | .*) session="" ;; esac
 
 # Claude Code includes rate_limits only for Pro/Max subscribers, after the session's first response.
-if limits=$(get rate_limits json); then
+if [ -n "$session" ] && limits=$(get rate_limits json); then
     tmp="$dir/.$session.$$"
     mkdir -p "$dir" && printf '%s' "$limits" >"$tmp" && mv -f "$tmp" "$dir/$session.json"
+fi
+
+# Your own status line, if ClaudeWatch kept it.
+if [ $# -gt 0 ]; then
+    if [ -n "$had_lc_all" ]; then LC_ALL=$lc_all; else unset LC_ALL; fi
+    printf '%s' "$input" | "${SHELL:-/bin/sh}" -c "$1"
+    exit
 fi
 
 # The session's folder, with the home folder as ~.

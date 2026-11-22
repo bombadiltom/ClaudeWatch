@@ -40,6 +40,8 @@ final class UsageStore {
     private var desktopPlanUsage: PlanUsage?
     /// Limits Claude Code saw, from its status line (see `LiveLimitsReader`).
     private var liveReadings: [LimitReading] = []
+    /// When Claude Code's status line last saved the limits, for Settings.
+    var liveLimitsUpdated: Date? { liveReadings.map(\.date).max() }
     /// The last week's plan requests, kept between scans for `refreshPlan`.
     private var planRequestCache: [PlanEstimator.Usage] = []
     private var isReadingPlan = false
