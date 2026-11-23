@@ -5,3 +5,4 @@ DerivedData/
 *.xcodeproj/project.xcworkspace/xcuserdata/
 dist/
 ClaudeWatch.xcodeproj/
+plugin/claudewatch/.claude-plugin/types/

@@ -82,12 +82,14 @@ struct LimitReading: Codable, Sendable, Equatable {
     }
 }
 
-/// Reads the limits that `scripts/claudewatch-statusline.sh` saves from Claude Code's status line
-/// input: one `<session-id>.json` per session holding its `rate_limits` object, e.g.
-/// `{"five_hour":{"used_percentage":12,"resets_at":1795372800},"seven_day":{…}}`.
+/// Reads the limits that ClaudeWatch's Claude Code plugin (`plugin/claudewatch`) or its status line
+/// (`scripts/claudewatch-statusline.sh`) save: one `<session-id>.json` per session holding the
+/// status line input's `rate_limits` object, e.g.
+/// `{"five_hour":{"used_percentage":12,"resets_at":1795372800},"seven_day":{…}}`. The plugin writes
+/// `resets_at` as an ISO 8601 string.
 ///
-/// Claude Code reruns the status line after each response, so the file's modification time is
-/// when the numbers were current.
+/// Both rewrite the file after each response, so its modification time is when the numbers were
+/// current.
 enum LiveLimitsReader {
     static var defaultDirectory: URL? {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?

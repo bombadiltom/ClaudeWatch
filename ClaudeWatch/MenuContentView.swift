@@ -232,7 +232,7 @@ struct PlanUsageView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                Text("Claude Desktop records your 5-hour and weekly plan usage while it runs. Open Claude Desktop, or add ClaudeWatch's status line to Claude Code, to see it here.")
+                Text("Claude Desktop records your 5-hour and weekly plan usage while it runs. Open Claude Desktop, or set up ClaudeWatch's Claude Code plugin in Settings, to see it here.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -282,9 +282,9 @@ struct PlanUsageView: View {
         case (true, true):
             return "Claude Code gets these with every response, Desktop and Cowork included. ≈ adds your Claude Code use since its last one."
         case (false, true):
-            return "≈ adds your Claude Code use on this Mac. Chats, Cowork and other devices only count from Desktop's next reading, so it can run low. ClaudeWatch's Claude Code status line gives exact numbers."
+            return "≈ adds your Claude Code use on this Mac. Chats, Cowork and other devices only count from Desktop's next reading, so it can run low. ClaudeWatch's Claude Code plugin gives exact numbers."
         case (false, false):
-            return "Claude Desktop saves these every 15 minutes, so they can trail its own Usage view. ClaudeWatch's Claude Code status line gives exact numbers."
+            return "Claude Desktop saves these every 15 minutes, so they can trail its own Usage view. ClaudeWatch's Claude Code plugin gives exact numbers."
         }
     }
 }

@@ -17,6 +17,10 @@ targets:
       # Installed into ~/.claude/ from Settings (StatusLineSetup).
       - path: scripts/claudewatch-statusline.sh
         buildPhase: resources
+      # Installed through the claude command from Settings (PluginSetup).
+      - path: plugin/claudewatch
+        type: folder
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: de.idiotentruppe.claudewatch

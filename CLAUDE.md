@@ -26,7 +26,7 @@ the features and the data sources. This file covers what you need to change the 
 | Live sessions, names | `~/.claude/sessions/<pid>.json` | `SessionDirectory` |
 | Desktop session titles | `~/Library/Application Support/Claude/claude-code-sessions/*/*/local_*.json` | `SessionDirectory` |
 | Plan limits (5-hour, weekly) | `~/Library/Application Support/Claude/plan-usage-history.json` | `PlanUsageReader` |
-| Live plan limits, exact resets | `~/Library/Caches/de.idiotentruppe.claudewatch/rate-limits/<session>.json`, written by `scripts/claudewatch-statusline.sh` from Claude Code's status line input | `LiveLimitsReader` |
+| Live plan limits, exact resets | `~/Library/Caches/de.idiotentruppe.claudewatch/rate-limits/<session>.json`, written by the plugin `plugin/claudewatch` (every session, Desktop's Code tab included) or `scripts/claudewatch-statusline.sh` (terminal sessions) | `LiveLimitsReader` |
 | Limit reached, reset time | `quotaLimits` of the `<synthetic>` 429 error records in the transcripts | `TranscriptScanner` |
 
 - None of these formats are documented. Parse loosely and degrade quietly: return nil or skip the record,
@@ -49,6 +49,13 @@ the features and the data sources. This file covers what you need to change the 
   It edits the text (`JSONText`) instead of re-encoding, so the user's file keeps its order and formatting,
   and it writes only if the result parses to exactly the intended settings. A user's own status line is
   kept by wrapping its command, never replaced.
+- **Plugin setup:** `plugin/claudewatch` is a Claude Code plugin (a mod: `hooks/register.ts`, tests with
+  `claude plugin test plugin/claudewatch`). The repo root's `.claude-plugin/marketplace.json` makes the repo
+  a marketplace for installing by hand. The app bundles the folder and `PluginSetup` copies it into a
+  marketplace of its own in `~/.claude/claudewatch-plugin/`, then installs it with the `claude` command
+  (never by editing Claude Code's plugin files), only on a click. It updates the installed copy at launch
+  when the bundled version differs, so **bump `version` in its `plugin.json` with every change**, or
+  Claude Code keeps the cached copy. `testWithRealClaudeCode` is opt-in because it changes `~/.claude`.
 - **Deleted transcripts:** Claude Code deletes transcripts after `cleanupPeriodDays`. The scanner keeps entries
   of files that disappeared, so totals don't shrink.
 - **Scanner cache:** the scanner reads incrementally (byte offset and inode per file) and caches its state in

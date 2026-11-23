@@ -35,7 +35,7 @@ final class SnapshotTests: XCTestCase {
         try #"{"statusLine": {"type": "command", "command": "~/.claude/statusline.sh"}}"#
             .write(to: claude.appendingPathComponent("settings.json"), atomically: true, encoding: .utf8)
         try render(
-            LiveLimitsSetupView(lastReading: nil, setup: StatusLineSetup(claudeDirectory: claude)).padding(14).frame(width: 380),
+            LiveLimitsSetupView(lastReading: nil, setup: StatusLineSetup(claudeDirectory: claude), plugin: PluginSetup(claudeDirectory: claude)).padding(14).frame(width: 380),
             to: dir.appendingPathComponent("settings-live-limits.png")
         )
 

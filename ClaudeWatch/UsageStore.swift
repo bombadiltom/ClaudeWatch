@@ -38,9 +38,9 @@ final class UsageStore {
     private(set) var planUsage: PlanUsage?
     /// Desktop's reading as saved.
     private var desktopPlanUsage: PlanUsage?
-    /// Limits Claude Code saw, from its status line (see `LiveLimitsReader`).
+    /// Limits Claude Code saw, from the plugin or the status line (see `LiveLimitsReader`).
     private var liveReadings: [LimitReading] = []
-    /// When Claude Code's status line last saved the limits, for Settings.
+    /// When the plugin or the status line last saved the limits, for Settings.
     var liveLimitsUpdated: Date? { liveReadings.map(\.date).max() }
     /// The last week's plan requests, kept between scans for `refreshPlan`.
     private var planRequestCache: [PlanEstimator.Usage] = []
@@ -173,7 +173,7 @@ final class UsageStore {
         evaluateBudget()
     }
 
-    /// Re-reads only the plan limits: Desktop's samples and Claude Code's status line readings.
+    /// Re-reads only the plan limits: Desktop's samples and Claude Code's readings.
     func refreshPlan() {
         guard hasScanned, !isScanning, !isReadingPlan else { return }
         isReadingPlan = true

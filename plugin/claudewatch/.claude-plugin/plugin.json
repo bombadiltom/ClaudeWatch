@@ -1,0 +1,6 @@
+{
+  "name": "claudewatch",
+  "version": "1.0.0",
+  "description": "Saves your plan limits (5-hour and weekly) for the ClaudeWatch menu bar app, in every Claude Code session, Claude Desktop's Code tab included",
+  "homepage": "https://github.com/bombadiltom/ClaudeWatch"
+}

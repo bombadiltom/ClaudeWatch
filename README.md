@@ -4,7 +4,7 @@ A menu bar app for macOS 14+ that shows how much of your Claude plan you've used
 
 > ClaudeWatch is an independent project. It isn't affiliated with, endorsed by or supported by Anthropic. Claude is a trademark of Anthropic, used here only to say which product the app works with.
 
-- **Plan limits:** the 5-hour and weekly utilization of your Pro/Max plan and when they reset, live from Claude Code's [status line](#live-plan-limits) or from Claude Desktop's Settings › Usage.
+- **Plan limits:** the 5-hour and weekly utilization of your Pro/Max plan and when they reset, live from Claude Code (with ClaudeWatch's [plugin or status line](#live-plan-limits)) or from Claude Desktop's Settings › Usage.
 - **Menu bar:** your 5-hour plan usage and today's AWS cost, or either one.
 - **Tokens and cost:** plan usage in tokens (with its value at API prices), Bedrock usage in dollars.
 - **Pinned sessions:** right-click a session to pin it. Pinned sessions get their own rows, with a green dot while they run and a per-model breakdown.
@@ -25,16 +25,28 @@ Claude Code writes every session to `~/.claude/projects/<folder>/<session-id>.js
 
 **Plan limits** come from two places, whichever is newer. Neither needs a login or network requests:
 
-- **Claude Code** gets your plan's 5-hour and weekly utilization, with their exact reset times, in the headers of every API response. These numbers cover the whole account: Code sessions, Desktop chats, Cowork and claude.ai. Claude Code passes them to its status line command, and ClaudeWatch's status line saves them for the app (see [Live plan limits](#live-plan-limits)). When you hit a limit, the "limit reached" error in the transcript carries the reset time too, and ClaudeWatch reads that without any setup.
+- **Claude Code** gets your plan's 5-hour and weekly utilization, with their exact reset times, in the headers of every API response. These numbers cover the whole account: Code sessions, Desktop chats, Cowork and claude.ai. ClaudeWatch's Claude Code plugin or its status line saves them for the app (see [Live plan limits](#live-plan-limits)). When you hit a limit, the "limit reached" error in the transcript carries the reset time too, and ClaudeWatch reads that without any setup.
 - **Claude Desktop** records the same numbers in `~/Library/Application Support/Claude/plan-usage-history.json` about every 15 minutes while it runs. To bridge the gap, ClaudeWatch adds the plan usage of Claude Code sessions since then (marked ≈), at a rate it learns from Desktop's samples. Usage that isn't in a transcript, from Desktop chats and Cowork, only shows up with the next sample.
 
 ClaudeWatch re-reads both every 5 seconds and shows which one the numbers came from, and when.
 
 ### Live plan limits
 
-Open **Settings** and click **Set Up** next to **Live plan limits**. ClaudeWatch copies its status line script to `~/.claude/claudewatch-statusline.sh` and adds it to `~/.claude/settings.json`. It changes only the `statusLine` entry and leaves the rest of the file as it was. If you already have a status line, it stays: your command becomes the script's argument, and the script runs it with the same input and shows its output. **Remove** undoes both. After an update, ClaudeWatch refreshes the copied script. It never sets anything up on its own.
+Open **Settings**. Under **Live plan limits** there are two ways to hand ClaudeWatch the exact numbers. Either is enough, and ClaudeWatch never sets anything up on its own.
 
-To set it up by hand instead, copy the script into Claude Code's folder:
+- **Claude Code plugin:** runs in every Claude Code session, Claude Desktop's Code tab included. **Set Up** copies the plugin to `~/.claude/claudewatch-plugin/` and installs it with Claude Code's own `claude plugin` commands, so it needs the `claude` command (Claude Code for the terminal). **Remove** uninstalls it. After an update, ClaudeWatch updates the installed plugin.
+- **Status line:** runs only in terminal sessions, and also shows the limits under the prompt. **Set Up** copies ClaudeWatch's status line script to `~/.claude/claudewatch-statusline.sh` and adds it to `~/.claude/settings.json`. It changes only the `statusLine` entry and leaves the rest of the file as it was. If you already have a status line, it stays: your command becomes the script's argument, and the script runs it with the same input and shows its output. **Remove** undoes both.
+
+Either one saves each session's numbers to `~/Library/Caches/de.idiotentruppe.claudewatch/rate-limits/`, and ClaudeWatch takes the newest, so any running session keeps it current, while you work in Cowork too. Claude Code only includes the limits for Pro and Max plans, after a session's first response. Sessions on Bedrock or Vertex don't get them.
+
+To install the plugin by hand instead, this repository is a plugin marketplace:
+
+```bash
+claude plugin marketplace add bombadiltom/ClaudeWatch
+claude plugin install claudewatch@claudewatch
+```
+
+To set up the status line by hand, copy the script into Claude Code's folder:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bombadiltom/ClaudeWatch/main/scripts/claudewatch-statusline.sh -o ~/.claude/claudewatch-statusline.sh
@@ -47,9 +59,7 @@ and set it as the status line in `~/.claude/settings.json`:
 "statusLine": { "type": "command", "command": "~/.claude/claudewatch-statusline.sh" }
 ```
 
-Each Claude Code session then shows its folder and the limits, like `~/Projects/acme · 5h 12% · 7d 61%`, and saves its numbers to `~/Library/Caches/de.idiotentruppe.claudewatch/rate-limits/`. ClaudeWatch takes the newest, so any running session keeps it current, while you work in Cowork too. The script uses only `/usr/bin/plutil`. Claude Code only includes the limits for Pro and Max plans, after a session's first response.
-
-Only Claude Code in the terminal runs the status line. Claude Desktop's Code tab doesn't, so while you work only there, ClaudeWatch goes back to Desktop's samples plus its estimate. Sessions on Bedrock or Vertex don't get plan limits either. Any terminal session on your plan that's making requests keeps the numbers exact.
+Each terminal session then shows its folder and the limits, like `~/Projects/acme · 5h 12% · 7d 61%`. The script uses only `/usr/bin/plutil`.
 
 **Pinned sessions:** right-click a session in the menu and choose **Pin Session**, or add one in Settings. A session belongs to a pin if its id matches, or if its name (`claude -n <name>`) equals the pin's label, so a pin by name also catches every new session you start with that name.
 
@@ -58,7 +68,7 @@ Only Claude Code in the terminal runs the status line. Claude Desktop's Code tab
 - **Bedrock regional pricing.** On Bedrock, geographic inference profiles (`eu.`, `us.`, `jp.`, `au.` …) and in-region endpoints cost 10% more than the `global.` profile for current Claude models such as Opus 5.5 ([AWS docs](https://docs.aws.amazon.com/bedrock/latest/userguide/global-cross-region-inference.html)). Transcripts don't record which profile a session used, so set **Bedrock surcharge** to 10 in Settings if you use geographic profiles. Compare with AWS Cost Explorer, which lags up to a day.
 - **Deleted transcripts.** Claude Code deletes transcripts older than 30 days (`cleanupPeriodDays`). ClaudeWatch keeps the usage it has already read from them, but anything deleted before ClaudeWatch first ran is gone. To keep transcripts longer, set `"cleanupPeriodDays"` in `~/.claude/settings.json`.
 - **Claude Desktop chats** (not Code sessions) aren't stored on your Mac, so their tokens don't appear here. The plan-limit bars include them, because the plan counts all usage together.
-- **Without the status line, plan limits can trail by 15 minutes or more.** Desktop saves a sample only every 15 minutes, and only while it runs. Claude Code usage since then is estimated, but Desktop chats and Cowork keep their transcripts out of reach (Cowork's run inside its VM), so their usage, and a 5-hour window they started, only show up with Desktop's next sample. The reset time is then inferred from the transcripts ("resets about"). The status line fixes all of that, as long as a Claude Code session is running and making requests. Neither file is a documented format, and both may change.
+- **Without the plugin or the status line, plan limits can trail by 15 minutes or more.** Desktop saves a sample only every 15 minutes, and only while it runs, and it pauses its sampling when you haven't opened its menu bar icon for a day. Claude Code usage since then is estimated, but Desktop chats and Cowork keep their transcripts out of reach (Cowork's run inside its VM), so their usage, and a 5-hour window they started, only show up with Desktop's next sample. The reset time is then inferred from the transcripts ("resets about"). The plugin fixes all of that, as long as a Claude Code session is making requests. Neither file is a documented format, and both may change.
 - **Prices** are built in (`ClaudeWatch/Pricing.swift`). A model that's missing shows as "unpriced" instead of guessing.
 
 ## Install with Homebrew

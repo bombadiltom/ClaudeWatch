@@ -140,19 +140,37 @@ struct SettingsView: View {
     }
 }
 
-/// Sets up ClaudeWatch's status line in Claude Code, which gives the exact plan limits (see
-/// `StatusLineSetup`). Only ever on a click: it edits Claude Code's settings, not ClaudeWatch's.
+/// Sets up the two ways Claude Code hands ClaudeWatch the exact plan limits: the plugin (every
+/// session, Desktop's Code tab included, see `PluginSetup`) and the status line (terminal sessions,
+/// see `StatusLineSetup`). Only ever on a click: both change Claude Code's settings, not ClaudeWatch's.
 struct LiveLimitsSetupView: View {
     let lastReading: Date?
     var setup = StatusLineSetup()
+    var plugin = PluginSetup()
     @State private var state: StatusLineSetup.State?
+    @State private var pluginState: PluginSetup.State?
+    @State private var pluginBusy = false
     @State private var error: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Live plan limits").font(.subheadline.weight(.semibold))
-                Spacer()
+            Text("Live plan limits").font(.subheadline.weight(.semibold))
+            Text("Claude Code gets your exact plan limits, Desktop chats and Cowork included, with every response. Either of these hands them to ClaudeWatch. \(readingText)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            row("Claude Code plugin", caption: pluginExplanation) {
+                if pluginBusy {
+                    ProgressView().controlSize(.small)
+                } else if pluginState == .setUp {
+                    Button("Remove") { runPlugin { [plugin] in try plugin.remove() } }.controlSize(.small)
+                } else if pluginState == .notSetUp {
+                    Button("Set Up") { runPlugin { [plugin] in try plugin.install() } }.controlSize(.small)
+                }
+            }
+
+            row("Status line", caption: statusLineExplanation) {
                 switch state {
                 case .setUp:
                     Button("Remove") { run(setup.remove) }.controlSize(.small)
@@ -162,10 +180,7 @@ struct LiveLimitsSetupView: View {
                     EmptyView()
                 }
             }
-            Text(explanation)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+
             if let error {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .font(.caption)
@@ -173,22 +188,52 @@ struct LiveLimitsSetupView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .onAppear { state = setup.state() }
+        .onAppear {
+            state = setup.state()
+            pluginState = plugin.state()
+        }
     }
 
-    private var explanation: String {
+    private func row<Buttons: View>(_ title: String, caption: String, @ViewBuilder buttons: () -> Buttons) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title).font(.callout)
+                Spacer()
+                buttons()
+            }
+            Text(caption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.top, 2)
+    }
+
+    private var readingText: String {
+        guard let lastReading else {
+            if case .setUp = state { return "The first reading comes with the next response." }
+            return pluginState == .setUp ? "The first reading comes with the next response." : ""
+        }
+        return "Last reading \(Self.time(lastReading))."
+    }
+
+    private var pluginExplanation: String {
+        pluginState == .setUp
+            ? "Runs in every Claude Code session, Claude Desktop's Code tab included."
+            : "Runs in every Claude Code session, Claude Desktop's Code tab included. Set Up installs it with the claude command, from a copy in ~/.claude/claudewatch-plugin/."
+    }
+
+    private var statusLineExplanation: String {
         switch state {
         case .setUp(let wrapping):
-            let reading = lastReading.map { "Last reading \(Self.time($0))." }
-                ?? "The first reading comes with the next response in a Claude Code terminal session."
             let yours = wrapping.map { " Your own status line (“\(Self.short($0))”) keeps running." } ?? ""
-            return "Claude Code's status line hands ClaudeWatch your exact plan limits, Desktop and Cowork included. \(reading)\(yours)"
+            return "Shows the folder and the limits under the prompt in terminal sessions.\(yours)"
         case .otherStatusLine(let command):
-            return "Claude Code can hand ClaudeWatch your exact plan limits, Desktop and Cowork included, through its status line. Set Up adds ClaudeWatch's script to ~/.claude/settings.json and keeps your status line (“\(Self.short(command))”) running."
+            return "Shows the limits in terminal sessions. Set Up adds ClaudeWatch's script to ~/.claude/settings.json and keeps your status line (“\(Self.short(command))”) running."
         case .unreadable:
-            return "ClaudeWatch can't read ~/.claude/settings.json (or its status line has no command), so it can't set up live plan limits. Its README shows how to set them up by hand."
+            return "ClaudeWatch can't read ~/.claude/settings.json (or its status line has no command), so it can't set up the status line. Its README shows how to set it up by hand."
         case .notSetUp, nil:
-            return "Claude Code can hand ClaudeWatch your exact plan limits, Desktop and Cowork included, through its status line. Set Up copies ClaudeWatch's script to ~/.claude/ and adds it to ~/.claude/settings.json. It works in terminal sessions on your plan."
+            return "Shows the folder and the limits under the prompt in terminal sessions. Set Up copies ClaudeWatch's script to ~/.claude/ and adds it to ~/.claude/settings.json."
         }
     }
 
@@ -200,6 +245,25 @@ struct LiveLimitsSetupView: View {
             self.error = error.localizedDescription
         }
         state = setup.state()
+    }
+
+    /// The plugin runs `claude`, which takes a few seconds, so off the main thread.
+    private func runPlugin(_ action: @escaping @Sendable () throws -> Void) {
+        pluginBusy = true
+        let plugin = plugin
+        Task {
+            let message = await Task.detached { () -> String? in
+                do {
+                    try action()
+                    return nil
+                } catch {
+                    return error.localizedDescription
+                }
+            }.value
+            error = message
+            pluginState = plugin.state()
+            pluginBusy = false
+        }
     }
 
     private static func short(_ command: String) -> String {
