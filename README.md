@@ -5,7 +5,7 @@ A menu bar app for macOS 14+ that shows how much of your Claude plan you've used
 > ClaudeWatch is an independent project. It isn't affiliated with, endorsed by or supported by Anthropic. Claude is a trademark of Anthropic, used here only to say which product the app works with.
 
 - **Plan limits:** the 5-hour and weekly utilization of your Pro/Max plan and when they reset, live from Claude Code (with ClaudeWatch's [plugin or status line](#live-plan-limits)) or from Claude Desktop's Settings › Usage.
-- **Menu bar:** your 5-hour plan usage and today's AWS cost, or either one.
+- **Menu bar:** your 5-hour and weekly plan usage (`5h 85% · 7d 12%`) and today's AWS cost, or either one.
 - **Tokens and cost:** plan usage in tokens (with its value at API prices), Bedrock usage in dollars.
 - **Pinned sessions:** right-click a session to pin it. Pinned sessions get their own rows, with a green dot while they run and a per-model breakdown.
 - **Claude Desktop:** totals for the Desktop app's Code sessions, drilling down to projects and then sessions, with the titles Desktop shows.

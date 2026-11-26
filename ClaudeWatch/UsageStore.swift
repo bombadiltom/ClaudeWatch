@@ -11,8 +11,8 @@ enum MenuBarDisplay: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .planAndCloud: "5-hour plan usage + AWS cost"
-        case .plan: "5-hour plan usage"
+        case .planAndCloud: "Plan limits + AWS cost"
+        case .plan: "Plan limits"
         case .cloud: "AWS cost"
         case .iconOnly: "Icon only"
         }

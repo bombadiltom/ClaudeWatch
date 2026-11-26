@@ -58,6 +58,14 @@ struct PlanUsage: Sendable, Equatable {
         return limit.utilization
     }
 
+    /// The weekly utilization, or nil if the sample is older than the week itself.
+    func weekly(now: Date = .now) -> Double? {
+        guard let limit = limit(PlanUsageReader.weekly) else { return nil }
+        let windowRunning = limit.resetsAt.map { $0 > now } ?? false
+        guard now.timeIntervalSince(updated) < 7 * 86_400 || limit.isEstimated || windowRunning else { return nil }
+        return limit.utilization
+    }
+
     func limit(_ id: String) -> PlanLimit? { limits.first { $0.id == id } }
 }
 

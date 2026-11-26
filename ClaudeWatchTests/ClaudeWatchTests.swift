@@ -348,6 +348,15 @@ final class PlanEstimatorTests: XCTestCase {
         XCTAssertEqual(estimate.limits.map(\.isEstimated), [false, false])
         XCTAssertTrue(estimate.isLive)
         XCTAssertEqual(estimate.fiveHour(now: t0.addingTimeInterval(60)), 12)
+        XCTAssertEqual(estimate.weekly(now: t0.addingTimeInterval(60)), 40)
+    }
+
+    func testWeeklyUntilTheReadingIsOlderThanAWeek() {
+        let limit = PlanLimit(id: "sd", label: "Weekly", utilization: 40, resetsAt: t0.addingTimeInterval(2 * 86_400))
+        let usage = PlanUsage(limits: [limit], asOf: t0)
+        XCTAssertEqual(usage.weekly(now: t0.addingTimeInterval(6 * 86_400)), 40, "a six-day-old reading still counts")
+        XCTAssertNil(usage.weekly(now: t0.addingTimeInterval(8 * 86_400)))
+        XCTAssertNil(PlanUsage(limits: [], asOf: t0).weekly(now: t0))
     }
 
     func testNewestReadingKeepsTheHighestOfItsWindow() throws {
